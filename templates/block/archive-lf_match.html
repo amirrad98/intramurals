@@ -1,0 +1,17 @@
+<!-- wp:template-part {"slug":"header","tagName":"header"} /-->
+
+<!-- wp:group {"tagName":"main","className":"leagueflow-site-main","layout":{"type":"constrained","contentSize":"1200px"}} -->
+<main class="wp-block-group leagueflow-site-main">
+	<!-- wp:group {"className":"leagueflow leagueflow-archive","layout":{"type":"default"}} -->
+	<div class="wp-block-group leagueflow leagueflow-archive">
+		<!-- wp:heading {"level":1} -->
+		<h1 class="wp-block-heading">Matches</h1>
+		<!-- /wp:heading -->
+
+		<!-- wp:shortcode -->[match_list limit="-1"]<!-- /wp:shortcode -->
+	</div>
+	<!-- /wp:group -->
+</main>
+<!-- /wp:group -->
+
+<!-- wp:template-part {"slug":"footer","tagName":"footer"} /-->
