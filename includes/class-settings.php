@@ -65,6 +65,18 @@ class Settings {
 		);
 
 		add_settings_section(
+			'leagueflow_scheduling',
+			__( 'Scheduling Constraints', 'leagueflow' ),
+			array( $this, 'render_scheduling_section' ),
+			'leagueflow-settings',
+			array(
+				'before_section' => '<div class="leagueflow-settings-panel %s">',
+				'after_section'  => '</div>',
+				'section_class'  => 'leagueflow-settings-panel--scheduling',
+			)
+		);
+
+		add_settings_section(
 			'leagueflow_display',
 			__( 'Display and Routing', 'leagueflow' ),
 			array( $this, 'render_display_section' ),
@@ -91,7 +103,12 @@ class Settings {
 		add_settings_field( 'points_win', __( 'Points for a win', 'leagueflow' ), array( $this, 'render_number_field' ), 'leagueflow-settings', 'leagueflow_points', array( 'key' => 'points_win', 'min' => 0, 'class' => 'leagueflow-setting-row--points' ) );
 		add_settings_field( 'points_draw', __( 'Points for a draw', 'leagueflow' ), array( $this, 'render_number_field' ), 'leagueflow-settings', 'leagueflow_points', array( 'key' => 'points_draw', 'min' => 0, 'class' => 'leagueflow-setting-row--points' ) );
 		add_settings_field( 'points_loss', __( 'Points for a loss', 'leagueflow' ), array( $this, 'render_number_field' ), 'leagueflow-settings', 'leagueflow_points', array( 'key' => 'points_loss', 'min' => 0, 'class' => 'leagueflow-setting-row--points' ) );
+		add_settings_field( 'forfeit_score_winner', __( 'Forfeit walkover goals', 'leagueflow' ), array( $this, 'render_number_field' ), 'leagueflow-settings', 'leagueflow_points', array( 'key' => 'forfeit_score_winner', 'min' => 0, 'class' => 'leagueflow-setting-row--points', 'description' => __( 'Goals credited to the team that wins by forfeit (default 3-0).', 'leagueflow' ) ) );
 		add_settings_field( 'tie_breakers', __( 'Tie-breaker priority', 'leagueflow' ), array( $this, 'render_tie_breakers_field' ), 'leagueflow-settings', 'leagueflow_points', array( 'class' => 'leagueflow-setting-row--wide' ) );
+
+		add_settings_field( 'min_rest_days', __( 'Preferred rest days', 'leagueflow' ), array( $this, 'render_number_field' ), 'leagueflow-settings', 'leagueflow_scheduling', array( 'key' => 'min_rest_days', 'min' => 0, 'description' => __( 'Auto-scheduling spaces a team\'s games at least this many days apart when slots allow. 0 disables spacing.', 'leagueflow' ) ) );
+		add_settings_field( 'min_days_between_rematch', __( 'Days between rematches', 'leagueflow' ), array( $this, 'render_number_field' ), 'leagueflow-settings', 'leagueflow_scheduling', array( 'key' => 'min_days_between_rematch', 'min' => 0, 'description' => __( 'The two legs of the same pairing are kept at least this many days apart. 0 disables the rule.', 'leagueflow' ) ) );
+		add_settings_field( 'max_games_per_day_per_team', __( 'Max games per team per day', 'leagueflow' ), array( $this, 'render_number_field' ), 'leagueflow-settings', 'leagueflow_scheduling', array( 'key' => 'max_games_per_day_per_team', 'min' => 0, 'description' => __( 'Hard cap on games a single team can be auto-scheduled into on one day. 0 means no cap.', 'leagueflow' ) ) );
 
 		add_settings_field( 'captain_registration_open', __( 'Captain registration', 'leagueflow' ), array( $this, 'render_checkbox_field' ), 'leagueflow-settings', 'leagueflow_registration', array( 'key' => 'captain_registration_open', 'label' => __( 'Captains can create teams during the team-building window', 'leagueflow' ), 'class' => 'leagueflow-setting-row--wide' ) );
 		add_settings_field( 'player_registration_open', __( 'Player registration', 'leagueflow' ), array( $this, 'render_checkbox_field' ), 'leagueflow-settings', 'leagueflow_registration', array( 'key' => 'player_registration_open', 'label' => __( 'Players can create profiles and request or ask for team placement', 'leagueflow' ), 'class' => 'leagueflow-setting-row--wide' ) );
@@ -122,6 +139,10 @@ class Settings {
 		$sanitized['points_win']         = max( 0, absint( $input['points_win'] ?? $current['points_win'] ) );
 		$sanitized['points_draw']        = max( 0, absint( $input['points_draw'] ?? $current['points_draw'] ) );
 		$sanitized['points_loss']        = max( 0, absint( $input['points_loss'] ?? $current['points_loss'] ) );
+		$sanitized['forfeit_score_winner'] = max( 0, absint( $input['forfeit_score_winner'] ?? $current['forfeit_score_winner'] ) );
+		$sanitized['min_rest_days']              = max( 0, absint( $input['min_rest_days'] ?? $current['min_rest_days'] ) );
+		$sanitized['min_days_between_rematch']   = max( 0, absint( $input['min_days_between_rematch'] ?? $current['min_days_between_rematch'] ) );
+		$sanitized['max_games_per_day_per_team'] = max( 0, absint( $input['max_games_per_day_per_team'] ?? $current['max_games_per_day_per_team'] ) );
 		$sanitized['date_time_format']   = sanitize_text_field( $input['date_time_format'] ?? $current['date_time_format'] );
 		$sanitized['show_logos']         = bool_to_int( $input['show_logos'] ?? 0 );
 		$sanitized['show_player_photos'] = bool_to_int( $input['show_player_photos'] ?? 0 );
@@ -201,6 +222,15 @@ class Settings {
 	}
 
 	/**
+	 * Render scheduling section description.
+	 *
+	 * @return void
+	 */
+	public function render_scheduling_section() {
+		echo '<p>' . esc_html__( 'Tune how the auto-scheduler spreads fixtures. All limits are optional; leave a value at 0 to keep the previous first-fit behavior.', 'leagueflow' ) . '</p>';
+	}
+
+	/**
 	 * Render registration section description.
 	 *
 	 * @return void
@@ -226,6 +256,10 @@ class Settings {
 			esc_attr( $key ),
 			esc_attr( (string) $value )
 		);
+
+		if ( ! empty( $args['description'] ) ) {
+			printf( '<p class="description">%s</p>', esc_html( (string) $args['description'] ) );
+		}
 	}
 
 	/**

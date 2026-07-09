@@ -32,6 +32,8 @@ class Activator {
 
 		ensure_portal_roles();
 
+		Availability::create_table();
+
 		$post_types = new Post_Types();
 		$taxonomies = new Taxonomies();
 		$sports     = new Sports_Manager();
@@ -97,10 +99,17 @@ class Activator {
 			}
 		}
 
+		global $wpdb;
+
+		$availability_table = Availability::table_name();
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery
+		$wpdb->query( "DROP TABLE IF EXISTS {$availability_table}" );
+
 		delete_transient( 'leagueflow_activation_redirect' );
 		delete_option( 'leagueflow_settings' );
 		delete_option( 'leagueflow_flush_rewrite' );
 		delete_option( 'leagueflow_league_level_migration_complete' );
+		delete_option( Availability::DB_VERSION_OPTION );
 		delete_option( Sports_Manager::ENABLED_SPORTS_OPTION );
 		delete_option( Sports_Manager::SETUP_REQUIRED_OPTION );
 		delete_option( Sports_Manager::MIGRATION_OPTION );

@@ -195,6 +195,8 @@ class Post_Types {
 		$this->register_string_meta( 'lf_team', 'lf_coach', $shared_args );
 		$this->register_integer_meta( 'lf_team', 'lf_founded_year', $shared_args );
 		$this->register_user_ids_meta( 'lf_team', 'lf_manager_user_ids', $shared_args );
+		$this->register_signed_integer_meta( 'lf_team', 'lf_points_adjustment', $shared_args );
+		$this->register_string_meta( 'lf_team', 'lf_adjustment_note', $shared_args );
 
 		$this->register_email_meta( 'lf_player', 'lf_email', $shared_args );
 		$this->register_integer_meta( 'lf_player', 'lf_user_id', $shared_args );
@@ -213,6 +215,9 @@ class Post_Types {
 		$this->register_string_meta( 'lf_match', 'lf_home_score', $shared_args );
 		$this->register_string_meta( 'lf_match', 'lf_away_score', $shared_args );
 		$this->register_string_meta( 'lf_match', 'lf_status', $shared_args );
+		$this->register_string_meta( 'lf_match', 'lf_status_changed_at', $shared_args );
+		$this->register_string_meta( 'lf_match', 'lf_outcome', $shared_args );
+		$this->register_integer_meta( 'lf_match', 'lf_matchday', $shared_args );
 		$this->register_boolean_meta( 'lf_match', 'lf_is_knockout', $shared_args );
 		$this->register_string_meta( 'lf_match', 'lf_round_label', $shared_args );
 		$this->register_integer_meta( 'lf_match', 'lf_round_order', $shared_args );
@@ -358,6 +363,33 @@ class Post_Types {
 				array(
 					'type'              => 'integer',
 					'sanitize_callback' => 'absint',
+				)
+			)
+		);
+	}
+
+	/**
+	 * Register a signed integer meta field.
+	 *
+	 * Unlike register_integer_meta this preserves negative values, which is
+	 * required for standings point deductions.
+	 *
+	 * @param string               $post_type Post type.
+	 * @param string               $meta_key Meta key.
+	 * @param array<string, mixed> $args Base args.
+	 * @return void
+	 */
+	protected function register_signed_integer_meta( $post_type, $meta_key, $args ) {
+		register_post_meta(
+			$post_type,
+			$meta_key,
+			array_merge(
+				$args,
+				array(
+					'type'              => 'integer',
+					'sanitize_callback' => static function( $value ) {
+						return (int) $value;
+					},
 				)
 			)
 		);

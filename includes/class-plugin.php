@@ -58,15 +58,18 @@ class Plugin {
 		$taxonomy  = new Taxonomies();
 		$assets    = new Assets();
 
-		$standings = new Standings_Service();
-		$knockout  = new Knockout_Service();
-		$exporter  = new Exporter( $sports );
-		$fields    = new Field_Availability_Manager();
+		$standings    = new Standings_Service();
+		$knockout     = new Knockout_Service();
+		$exporter     = new Exporter( $sports );
+		$fields       = new Field_Availability_Manager();
+		$fixtures     = new Fixture_Generator( $fields );
+		$match_status = new Match_Status();
+		$availability = new Availability();
 
 		$this->renderer = new Renderer( $standings, $knockout, $sports );
 
 		$seeder    = new Seeder();
-		$admin     = new Admin( $standings, $knockout, $this->renderer, $seeder, $sports, $exporter, $fields );
+		$admin     = new Admin( $standings, $knockout, $this->renderer, $seeder, $sports, $exporter, $fields, $fixtures );
 		$portal    = new Portal( $this->renderer );
 		$rest      = new Rest_Controller( $standings, $knockout, $this->renderer );
 		$shortcode = new Shortcodes( $this->renderer );
@@ -82,6 +85,8 @@ class Plugin {
 			$standings,
 			$knockout,
 			$fields,
+			$match_status,
+			$availability,
 			$admin,
 			$portal,
 			$rest,

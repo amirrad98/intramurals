@@ -57,12 +57,57 @@ class Field_Availability_Manager {
 	const MAX_RANGE_DAYS = 366;
 
 	/**
+	 * Active scheduling constraints for the current run.
+	 *
+	 * @var array<string, int>
+	 */
+	protected $scheduling_constraints = array(
+		'min_rest_days'              => 0,
+		'min_days_between_rematch'   => 0,
+		'max_games_per_day_per_team' => 0,
+	);
+
+	/**
 	 * Register hooks.
 	 *
 	 * @return void
 	 */
 	public function register() {
 		// Reserved for future REST or cron hooks.
+	}
+
+	/**
+	 * Load scheduling constraints from plugin settings for the current run.
+	 *
+	 * All constraints default to off (0) so a site that never configures them
+	 * keeps the original first-fit behavior.
+	 *
+	 * @return void
+	 */
+	protected function load_scheduling_constraints() {
+		$this->scheduling_constraints = array(
+			'min_rest_days'              => max( 0, (int) get_setting( 'min_rest_days', 0 ) ),
+			'min_days_between_rematch'   => max( 0, (int) get_setting( 'min_days_between_rematch', 0 ) ),
+			'max_games_per_day_per_team' => max( 0, (int) get_setting( 'max_games_per_day_per_team', 0 ) ),
+		);
+	}
+
+	/**
+	 * Build a stable key for the pairing of two teams.
+	 *
+	 * @param array<int, int> $team_ids Team IDs.
+	 * @return string
+	 */
+	protected function pair_key( $team_ids ) {
+		$ids = array_values( array_filter( array_map( 'absint', (array) $team_ids ) ) );
+
+		if ( count( $ids ) < 2 ) {
+			return '';
+		}
+
+		sort( $ids );
+
+		return $ids[0] . '-' . $ids[1];
 	}
 
 	/**
@@ -281,6 +326,7 @@ class Field_Availability_Manager {
 	 * @return array<int, array<string, mixed>>
 	 */
 	public function get_available_slots( $args = array() ) {
+		$this->load_scheduling_constraints();
 		$args      = $this->normalize_schedule_args( $args );
 		$slots     = $this->build_slots( $args );
 		$conflicts = $this->get_conflicts( $args['date_from'], $args['date_to'], array() );
@@ -316,6 +362,7 @@ class Field_Availability_Manager {
 	 * @return array<string, mixed>
 	 */
 	public function schedule_matches( $args = array() ) {
+		$this->load_scheduling_constraints();
 		$args    = $this->normalize_schedule_args( $args );
 		$matches = $this->get_scheduleable_matches( $args );
 		$slots   = $this->build_slots( $args );
@@ -348,6 +395,12 @@ class Field_Availability_Manager {
 
 		$conflicts = $this->get_conflicts( $args['date_from'], $args['date_to'], $match_ids );
 		$reserved  = array();
+
+		// Place the hardest-to-fit fixtures first so scarce slots are not spent
+		// on matches that have many alternatives (most-constrained-first).
+		if ( ! empty( $slots ) && in_array( $args['mode'], array( 'both', 'datetime' ), true ) ) {
+			$matches = $this->sort_matches_most_constrained_first( $matches, $args, $slots, $conflicts );
+		}
 
 		foreach ( $matches as $match ) {
 			$decision = $this->schedule_one_match( (int) $match->ID, $args, $slots, $conflicts, $reserved );
@@ -455,6 +508,10 @@ class Field_Availability_Manager {
 		$existing_venue = (string) get_post_meta( $match_id, 'lf_venue', true );
 		$match_sport    = $this->get_match_sport_slug( $match_id );
 		$mode           = (string) $args['mode'];
+		$pair_key       = $this->pair_key( $team_ids );
+
+		$best         = null;
+		$best_penalty = null;
 
 		foreach ( $slots as $slot ) {
 			if ( ! $this->slot_matches_sport( $slot, $match_sport ) ) {
@@ -465,12 +522,164 @@ class Field_Availability_Manager {
 				continue;
 			}
 
-			if ( $this->is_slot_open( $slot, $team_ids, $conflicts, $reserved ) ) {
-				return $slot;
+			if ( ! $this->is_slot_open( $slot, $team_ids, $conflicts, $reserved ) ) {
+				continue;
+			}
+
+			// Keep the two legs of a rematch apart (hard constraint when set).
+			if ( $this->violates_rematch_gap( $pair_key, (int) $slot['start_ts'], $conflicts, $reserved ) ) {
+				continue;
+			}
+
+			$penalty = $this->slot_rest_penalty( $slot, $team_ids, $conflicts, $reserved );
+
+			if ( null === $best_penalty || $penalty < $best_penalty ) {
+				$best_penalty = $penalty;
+				$best         = $slot;
+
+				// Slots are pre-sorted ascending by start time, so the first
+				// zero-penalty candidate is the earliest ideal slot. This keeps
+				// the original first-fit outcome when no rest target is set.
+				if ( 0 === $penalty ) {
+					break;
+				}
 			}
 		}
 
-		return null;
+		return $best;
+	}
+
+	/**
+	 * Score a candidate slot by how well it respects the preferred rest gap.
+	 *
+	 * Returns 0 when there is no rest target, no other games for the teams, or
+	 * the nearest existing game is already far enough away. Otherwise the
+	 * penalty grows as the slot crowds a team's other games.
+	 *
+	 * @param array<string, mixed> $slot Slot.
+	 * @param array<int, int>      $team_ids Team IDs.
+	 * @param array<string, mixed> $conflicts Existing conflicts.
+	 * @param array<string, mixed> $reserved In-run reservations.
+	 * @return int
+	 */
+	protected function slot_rest_penalty( $slot, $team_ids, $conflicts, $reserved ) {
+		$min_rest = (int) $this->scheduling_constraints['min_rest_days'];
+
+		if ( $min_rest <= 0 ) {
+			return 0;
+		}
+
+		$start   = (int) $slot['start_ts'];
+		$nearest = null;
+
+		foreach ( array( $conflicts, $reserved ) as $source ) {
+			foreach ( $team_ids as $team_id ) {
+				if ( empty( $source['teams'][ $team_id ] ) ) {
+					continue;
+				}
+
+				foreach ( $source['teams'][ $team_id ] as $entry ) {
+					$days = (int) floor( abs( $start - (int) $entry['start_ts'] ) / DAY_IN_SECONDS );
+
+					if ( null === $nearest || $days < $nearest ) {
+						$nearest = $days;
+					}
+				}
+			}
+		}
+
+		if ( null === $nearest || $nearest >= $min_rest ) {
+			return 0;
+		}
+
+		return $min_rest - $nearest;
+	}
+
+	/**
+	 * Check whether placing a pairing at a time breaks the rematch-gap rule.
+	 *
+	 * @param string               $pair_key Pairing key.
+	 * @param int                  $start_ts Candidate start timestamp.
+	 * @param array<string, mixed> $conflicts Existing conflicts.
+	 * @param array<string, mixed> $reserved In-run reservations.
+	 * @return bool
+	 */
+	protected function violates_rematch_gap( $pair_key, $start_ts, $conflicts, $reserved ) {
+		$gap_days = (int) $this->scheduling_constraints['min_days_between_rematch'];
+
+		if ( $gap_days <= 0 || '' === $pair_key ) {
+			return false;
+		}
+
+		foreach ( array( $conflicts, $reserved ) as $source ) {
+			if ( empty( $source['pairs'][ $pair_key ] ) ) {
+				continue;
+			}
+
+			foreach ( $source['pairs'][ $pair_key ] as $entry ) {
+				$days = (int) floor( abs( $start_ts - (int) $entry['start_ts'] ) / DAY_IN_SECONDS );
+
+				if ( $days < $gap_days ) {
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * Order matches so the ones with the fewest open slots are scheduled first.
+	 *
+	 * @param array<int, \WP_Post>            $matches Matches.
+	 * @param array<string, mixed>            $args Scheduling args.
+	 * @param array<int, array<string,mixed>> $slots Slot candidates.
+	 * @param array<string, mixed>            $conflicts Existing conflicts.
+	 * @return array<int, \WP_Post>
+	 */
+	protected function sort_matches_most_constrained_first( $matches, $args, $slots, $conflicts ) {
+		$no_reservations = array();
+		$decorated       = array();
+
+		foreach ( $matches as $index => $match ) {
+			$team_ids    = $this->get_match_team_ids( (int) $match->ID );
+			$match_sport = $this->get_match_sport_slug( (int) $match->ID );
+			$open        = 0;
+
+			foreach ( $slots as $slot ) {
+				if ( ! $this->slot_matches_sport( $slot, $match_sport ) ) {
+					continue;
+				}
+
+				if ( $this->is_slot_open( $slot, $team_ids, $conflicts, $no_reservations ) ) {
+					$open++;
+				}
+			}
+
+			$decorated[] = array(
+				'match' => $match,
+				'open'  => $open,
+				'index' => $index,
+			);
+		}
+
+		usort(
+			$decorated,
+			static function( $a, $b ) {
+				if ( $a['open'] !== $b['open'] ) {
+					return $a['open'] <=> $b['open'];
+				}
+
+				return $a['index'] <=> $b['index'];
+			}
+		);
+
+		return array_map(
+			static function( $item ) {
+				return $item['match'];
+			},
+			$decorated
+		);
 	}
 
 	/**
@@ -691,6 +900,33 @@ class Field_Availability_Manager {
 			}
 		}
 
+		// Hard cap on how many games a team may play on one day.
+		$max_per_day = (int) $this->scheduling_constraints['max_games_per_day_per_team'];
+
+		if ( $max_per_day > 0 ) {
+			$slot_date = wp_date( 'Y-m-d', $start );
+
+			foreach ( $team_ids as $team_id ) {
+				$same_day = 0;
+
+				foreach ( array( $conflicts, $reserved ) as $source ) {
+					if ( empty( $source['teams'][ $team_id ] ) ) {
+						continue;
+					}
+
+					foreach ( $source['teams'][ $team_id ] as $entry ) {
+						if ( wp_date( 'Y-m-d', (int) $entry['start_ts'] ) === $slot_date ) {
+							$same_day++;
+						}
+					}
+				}
+
+				if ( $same_day >= $max_per_day ) {
+					return false;
+				}
+			}
+		}
+
 		return true;
 	}
 
@@ -716,12 +952,24 @@ class Field_Availability_Manager {
 
 		$reserved['venues'][ $venue_key ][] = $entry;
 
-		foreach ( $this->get_match_team_ids( $match_id ) as $team_id ) {
+		$match_team_ids = $this->get_match_team_ids( $match_id );
+
+		foreach ( $match_team_ids as $team_id ) {
 			if ( empty( $reserved['teams'][ $team_id ] ) ) {
 				$reserved['teams'][ $team_id ] = array();
 			}
 
 			$reserved['teams'][ $team_id ][] = $entry;
+		}
+
+		$pair_key = $this->pair_key( $match_team_ids );
+
+		if ( '' !== $pair_key ) {
+			if ( empty( $reserved['pairs'][ $pair_key ] ) ) {
+				$reserved['pairs'][ $pair_key ] = array();
+			}
+
+			$reserved['pairs'][ $pair_key ][] = $entry;
 		}
 	}
 
@@ -737,6 +985,7 @@ class Field_Availability_Manager {
 		$conflicts         = array(
 			'venues' => array(),
 			'teams'  => array(),
+			'pairs'  => array(),
 		);
 		$exclude_match_ids = array_filter( array_map( 'absint', (array) $exclude_match_ids ) );
 		$query_start       = $this->date_shift( $date_from, -1 ) . ' 00:00';
@@ -784,8 +1033,16 @@ class Field_Availability_Manager {
 				$conflicts['venues'][ $this->normalize_venue_key( $venue ) ][] = $entry;
 			}
 
-			foreach ( $this->get_match_team_ids( $match_id ) as $team_id ) {
+			$match_team_ids = $this->get_match_team_ids( $match_id );
+
+			foreach ( $match_team_ids as $team_id ) {
 				$conflicts['teams'][ $team_id ][] = $entry;
+			}
+
+			$pair_key = $this->pair_key( $match_team_ids );
+
+			if ( '' !== $pair_key ) {
+				$conflicts['pairs'][ $pair_key ][] = $entry;
 			}
 		}
 

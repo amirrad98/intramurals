@@ -82,7 +82,7 @@ class Renderer {
 		);
 
 		$competition_id  = resolve_term_id( $atts['competition'], 'lf_competition' );
-		$season_id       = resolve_term_id( $atts['season'], 'lf_season' );
+		$season_id       = resolve_season_context( $atts['season'] );
 		$sport_id        = resolve_term_id( $atts['sport'], 'lf_sport' );
 		$league_level_id = resolve_term_id( $atts['league_level'], 'lf_league_level' );
 		$sport_slug      = $this->resolve_context_sport_slug( $sport_id, $competition_id, $season_id );
@@ -121,7 +121,7 @@ class Renderer {
 		);
 
 		$competition_id   = resolve_term_id( $atts['competition'], 'lf_competition' );
-		$season_id        = resolve_term_id( $atts['season'], 'lf_season' );
+		$season_id        = resolve_season_context( $atts['season'] );
 		$league_level_id  = resolve_term_id( $atts['league_level'], 'lf_league_level' );
 		$show_logos       = '' === $atts['show_logos'] ? (bool) get_setting( 'show_logos', 1 ) : ! empty( $atts['show_logos'] );
 		$enabled_sports   = $this->sports_manager->get_enabled_sports();
@@ -191,7 +191,7 @@ class Renderer {
 		);
 
 		$competition_id  = resolve_term_id( $atts['competition'], 'lf_competition' );
-		$season_id       = resolve_term_id( $atts['season'], 'lf_season' );
+		$season_id       = resolve_season_context( $atts['season'] );
 		$sport_id        = resolve_term_id( $atts['sport'], 'lf_sport' );
 		$league_level_id = resolve_term_id( $atts['league_level'], 'lf_league_level' );
 		$show_logos      = '' === $atts['show_logos'] ? (bool) get_setting( 'show_logos', 1 ) : ! empty( $atts['show_logos'] );
@@ -275,7 +275,7 @@ class Renderer {
 		$matches = $this->get_match_items(
 			array(
 				'competition'      => $atts['competition'],
-				'season'           => $atts['season'],
+				'season'           => resolve_season_context( $atts['season'] ),
 				'sport'            => $atts['sport'],
 				'league_level'     => $atts['league_level'],
 				'status'           => $atts['status'],
@@ -344,7 +344,7 @@ class Renderer {
 		$events = $this->get_calendar_items(
 			array(
 				'competition'      => $atts['competition'],
-				'season'           => $atts['season'],
+				'season'           => resolve_season_context( $atts['season'] ),
 				'sport'            => $atts['sport'],
 				'league_level'     => $atts['league_level'],
 				'team'             => $atts['team'],
@@ -933,10 +933,11 @@ class Renderer {
 		);
 
 		$competition_id  = resolve_term_id( $atts['competition'], 'lf_competition' );
-		$season_id       = resolve_term_id( $atts['season'], 'lf_season' );
+		$season_id       = resolve_season_context( $atts['season'] );
 		$sport_id        = resolve_term_id( $atts['sport'], 'lf_sport' );
 		$league_level_id = resolve_term_id( $atts['league_level'], 'lf_league_level' );
 		$rounds          = $this->knockout_service->get_bracket( $competition_id, $season_id, $sport_id, $league_level_id );
+		$tree            = $this->knockout_service->get_bracket_tree( $competition_id, $season_id, $sport_id, $league_level_id );
 
 		$this->enqueue_frontend_assets();
 
@@ -944,6 +945,7 @@ class Renderer {
 			'knockout-bracket.php',
 			array(
 				'rounds' => $rounds,
+				'tree'   => $tree,
 			)
 		);
 	}

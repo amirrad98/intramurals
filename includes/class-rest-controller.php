@@ -109,6 +109,22 @@ class Rest_Controller {
 
 		register_rest_route(
 			'leagueflow/v1',
+			'/availability',
+			array(
+				'methods'             => WP_REST_Server::READABLE,
+				'callback'            => array( $this, 'get_availability' ),
+				'permission_callback' => '__return_true',
+				'args'                => array(
+					'match' => array(
+						'required'          => true,
+						'sanitize_callback' => 'absint',
+					),
+				),
+			)
+		);
+
+		register_rest_route(
+			'leagueflow/v1',
 			'/events',
 			array(
 				'methods'             => WP_REST_Server::READABLE,
@@ -270,6 +286,55 @@ class Rest_Controller {
 		$league_level_id = resolve_term_id( $request->get_param( 'league_level' ), 'lf_league_level' );
 
 		return rest_ensure_response( $this->knockout_service->get_bracket( $competition_id, $season_id, $sport_id, $league_level_id ) );
+	}
+
+	/**
+	 * Get aggregate availability (RSVP) counts for a match.
+	 *
+	 * Returns counts only (no player identities). When the requester is a
+	 * logged-in linked player, their own status is included.
+	 *
+	 * @param WP_REST_Request $request Request.
+	 * @return \WP_REST_Response
+	 */
+	public function get_availability( WP_REST_Request $request ) {
+		$match_id = absint( $request->get_param( 'match' ) );
+
+		if ( ! $match_id || 'lf_match' !== get_post_type( $match_id ) ) {
+			return rest_ensure_response(
+				new WP_Error(
+					'leagueflow_invalid_match',
+					__( 'A valid match is required.', 'leagueflow' ),
+					array( 'status' => 404 )
+				)
+			);
+		}
+
+		$response = array(
+			'match_id' => $match_id,
+			'counts'   => Availability::counts( $match_id ),
+		);
+
+		$user_id = get_current_user_id();
+
+		if ( $user_id ) {
+			$player_ids = get_posts(
+				array(
+					'post_type'      => 'lf_player',
+					'post_status'    => 'any',
+					'posts_per_page' => 1,
+					'fields'         => 'ids',
+					'meta_key'       => 'lf_user_id',
+					'meta_value'     => $user_id,
+				)
+			);
+
+			if ( ! empty( $player_ids ) ) {
+				$response['viewer_status'] = Availability::get_status( (int) $player_ids[0], $match_id );
+			}
+		}
+
+		return rest_ensure_response( $response );
 	}
 
 	/**

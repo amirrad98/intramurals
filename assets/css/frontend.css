@@ -2294,3 +2294,213 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 		width: 100%;
 	}
 }
+
+/* Standings point adjustment (LeagueFlow #3) */
+.leagueflow-table__adjustment,
+.leagueflow-standings-adjustment {
+	margin-left: 0.35rem;
+	font-size: 0.82em;
+	font-weight: 600;
+	color: var(--leagueflow-muted);
+	cursor: help;
+}
+
+/* Connected knockout bracket tree (LeagueFlow #4) */
+.leagueflow-bracket-tree {
+	display: flex;
+	flex-direction: row-reverse;
+	justify-content: flex-start;
+	align-items: center;
+	gap: 2.5rem;
+	overflow-x: auto;
+	padding: 0.5rem 0.25rem 1rem;
+}
+
+.lf-node {
+	display: flex;
+	flex-direction: row-reverse;
+	align-items: center;
+}
+
+.lf-node__game {
+	position: relative;
+	flex: 0 0 auto;
+}
+
+.leagueflow-bracket-tree__match {
+	position: relative;
+	min-width: 200px;
+	margin: 0.4rem 0;
+	padding: 0.6rem 0.75rem;
+	border: 1px solid var(--leagueflow-border);
+	border-radius: 8px;
+	background: var(--leagueflow-surface);
+}
+
+.leagueflow-bracket-tree__round {
+	display: block;
+	font-size: 0.72rem;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	color: var(--leagueflow-muted);
+	margin-bottom: 0.35rem;
+}
+
+.leagueflow-bracket-tree__match .leagueflow-bracket__team:last-of-type {
+	border-bottom: 0;
+}
+
+.leagueflow-bracket__team--bye {
+	color: var(--leagueflow-muted);
+	font-style: italic;
+}
+
+.lf-node__kids {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	gap: 0.75rem;
+	margin-right: 2.5rem;
+}
+
+/* Horizontal connector from a match to its feeding children. */
+.lf-node.has-kids > .lf-node__game::before {
+	content: "";
+	position: absolute;
+	top: 50%;
+	right: -2.5rem;
+	width: 2.5rem;
+	height: 2px;
+	background: var(--leagueflow-border);
+}
+
+/* Horizontal stub from each child to the shared vertical spine. */
+.lf-node__kids > .lf-node {
+	position: relative;
+}
+
+.lf-node__kids > .lf-node::before {
+	content: "";
+	position: absolute;
+	top: 50%;
+	right: -1.25rem;
+	width: 1.25rem;
+	height: 2px;
+	background: var(--leagueflow-border);
+}
+
+/* Vertical spine joining sibling children to the parent's midpoint. */
+.lf-node__kids > .lf-node:not(:only-child)::after {
+	content: "";
+	position: absolute;
+	right: -1.25rem;
+	width: 2px;
+	background: var(--leagueflow-border);
+	height: calc(50% + 0.375rem);
+}
+
+.lf-node__kids > .lf-node:first-child:not(:only-child)::after {
+	top: 50%;
+}
+
+.lf-node__kids > .lf-node:last-child:not(:only-child)::after {
+	bottom: 50%;
+}
+
+@media (max-width: 600px) {
+	.leagueflow-bracket-tree {
+		flex-direction: column;
+		align-items: stretch;
+		gap: 1rem;
+	}
+
+	.lf-node,
+	.lf-node__kids {
+		flex-direction: column;
+		margin-right: 0;
+	}
+
+	.lf-node.has-kids > .lf-node__game::before,
+	.lf-node__kids > .lf-node::before,
+	.lf-node__kids > .lf-node::after {
+		display: none;
+	}
+}
+
+/* Player availability / RSVP (LeagueFlow #6) */
+.leagueflow-rsvp {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5rem;
+	margin-top: 0.6rem;
+	padding-top: 0.6rem;
+	border-top: 1px solid var(--leagueflow-border);
+}
+
+.leagueflow-rsvp__label {
+	font-size: 0.85rem;
+	font-weight: 600;
+	color: var(--leagueflow-muted);
+}
+
+.leagueflow-rsvp__options {
+	display: inline-flex;
+	flex-wrap: wrap;
+	gap: 0.35rem;
+}
+
+.leagueflow-rsvp__button {
+	cursor: pointer;
+	padding: 0.3rem 0.7rem;
+	border: 1px solid var(--leagueflow-border);
+	border-radius: 999px;
+	background: var(--leagueflow-surface);
+	color: var(--leagueflow-text);
+	font-size: 0.82rem;
+	line-height: 1.2;
+}
+
+.leagueflow-rsvp__button:hover {
+	border-color: var(--leagueflow-accent);
+}
+
+.leagueflow-rsvp__button.is-active {
+	color: #fff;
+	border-color: var(--leagueflow-accent);
+	background: var(--leagueflow-accent);
+}
+
+.leagueflow-rsvp__button--out.is-active {
+	border-color: #a62828;
+	background: #a62828;
+}
+
+.leagueflow-availability-rollup {
+	margin-top: 0.75rem;
+	font-size: 0.9rem;
+}
+
+.leagueflow-availability-rollup h4 {
+	margin: 0 0 0.35rem;
+}
+
+.leagueflow-availability-rollup ul {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.leagueflow-availability-rollup li {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: space-between;
+	gap: 0.5rem;
+	padding: 0.3rem 0;
+	border-bottom: 1px solid var(--leagueflow-border);
+}
+
+.leagueflow-availability-rollup__counts {
+	color: var(--leagueflow-muted);
+	font-variant-numeric: tabular-nums;
+}

@@ -28,6 +28,17 @@ class Admin {
 	);
 
 	/**
+	 * Match result types (forfeit handling).
+	 *
+	 * @var array<string, string>
+	 */
+	protected $match_outcomes = array(
+		'forfeit_home'   => 'Home team forfeited',
+		'forfeit_away'   => 'Away team forfeited',
+		'double_forfeit' => 'Double forfeit',
+	);
+
+	/**
 	 * Calendar event types.
 	 *
 	 * @var array<string, string>
@@ -84,6 +95,13 @@ class Admin {
 	protected $field_availability_manager;
 
 	/**
+	 * Fixture generator.
+	 *
+	 * @var Fixture_Generator
+	 */
+	protected $fixture_generator;
+
+	/**
 	 * Seeder.
 	 *
 	 * @var Seeder
@@ -107,8 +125,9 @@ class Admin {
 	 * @param Sports_Manager    $sports_manager Sports.
 	 * @param Exporter          $exporter Exporter.
 	 * @param Field_Availability_Manager $field_availability_manager Field availability manager.
+	 * @param Fixture_Generator          $fixture_generator Fixture generator.
 	 */
-	public function __construct( Standings_Service $standings_service, Knockout_Service $knockout_service, Renderer $renderer, Seeder $seeder, Sports_Manager $sports_manager, Exporter $exporter, Field_Availability_Manager $field_availability_manager ) {
+	public function __construct( Standings_Service $standings_service, Knockout_Service $knockout_service, Renderer $renderer, Seeder $seeder, Sports_Manager $sports_manager, Exporter $exporter, Field_Availability_Manager $field_availability_manager, Fixture_Generator $fixture_generator ) {
 		$this->standings_service          = $standings_service;
 		$this->knockout_service           = $knockout_service;
 		$this->renderer                   = $renderer;
@@ -116,6 +135,7 @@ class Admin {
 		$this->sports_manager             = $sports_manager;
 		$this->exporter                   = $exporter;
 		$this->field_availability_manager = $field_availability_manager;
+		$this->fixture_generator          = $fixture_generator;
 	}
 
 	/**
@@ -140,6 +160,7 @@ class Admin {
 		add_action( 'admin_post_leagueflow_save_field_availability', array( $this, 'handle_save_field_availability' ) );
 		add_action( 'admin_post_leagueflow_delete_field_availability', array( $this, 'handle_delete_field_availability' ) );
 		add_action( 'admin_post_leagueflow_auto_schedule_matches', array( $this, 'handle_auto_schedule_matches' ) );
+		add_action( 'admin_post_leagueflow_generate_fixtures', array( $this, 'handle_generate_fixtures' ) );
 		add_action( 'pre_get_posts', array( $this, 'handle_admin_sorting' ) );
 		add_filter( 'get_terms_args', array( $this, 'filter_admin_terms_by_sport' ), 10, 2 );
 		add_action( 'restrict_manage_posts', array( $this, 'render_admin_sport_filter' ), 10, 2 );
@@ -184,6 +205,7 @@ class Admin {
 		add_submenu_page( 'leagueflow', __( 'Overview', 'leagueflow' ), __( 'Overview', 'leagueflow' ), 'edit_posts', 'leagueflow', array( $this, 'render_dashboard_page' ) );
 		add_submenu_page( 'leagueflow', __( 'Sports', 'leagueflow' ), __( 'Sports', 'leagueflow' ), 'manage_options', 'leagueflow-sports', array( $this, 'render_sports_page' ) );
 		add_submenu_page( 'leagueflow', __( 'League Levels', 'leagueflow' ), __( 'League Levels', 'leagueflow' ), 'manage_categories', 'edit-tags.php?taxonomy=lf_league_level&post_type=lf_match' );
+		add_submenu_page( 'leagueflow', __( 'Fixtures', 'leagueflow' ), __( 'Fixtures', 'leagueflow' ), 'edit_posts', 'leagueflow-fixtures', array( $this, 'render_fixtures_page' ) );
 		add_submenu_page( 'leagueflow', __( 'Field Availability', 'leagueflow' ), __( 'Field Availability', 'leagueflow' ), 'edit_posts', 'leagueflow-fields', array( $this, 'render_field_availability_page' ) );
 		add_submenu_page( 'leagueflow', __( 'Utilities', 'leagueflow' ), __( 'Utilities', 'leagueflow' ), 'manage_options', 'leagueflow-utilities', array( $this, 'render_utilities_page' ) );
 		add_submenu_page( 'leagueflow', __( 'Settings', 'leagueflow' ), __( 'Settings', 'leagueflow' ), 'manage_options', 'leagueflow-settings', array( $this, 'render_settings_page' ) );
@@ -221,6 +243,7 @@ class Admin {
 			add_submenu_page( $menu_slug, __( 'League Levels', 'leagueflow' ), __( 'League Levels', 'leagueflow' ), 'manage_categories', 'edit-tags.php?taxonomy=lf_league_level&post_type=lf_match&lf_sport=' . $sport_slug );
 			add_submenu_page( $menu_slug, __( 'Competitions', 'leagueflow' ), __( 'Competitions', 'leagueflow' ), 'manage_categories', 'edit-tags.php?taxonomy=lf_competition&post_type=lf_match&lf_sport=' . $sport_slug );
 			add_submenu_page( $menu_slug, __( 'Seasons', 'leagueflow' ), __( 'Seasons', 'leagueflow' ), 'manage_categories', 'edit-tags.php?taxonomy=lf_season&post_type=lf_match&lf_sport=' . $sport_slug );
+			add_submenu_page( $menu_slug, __( 'Fixtures', 'leagueflow' ), __( 'Fixtures', 'leagueflow' ), 'edit_posts', $menu_slug . '-fixtures', array( $this, 'render_fixtures_page' ) );
 			add_submenu_page( $menu_slug, __( 'Standings', 'leagueflow' ), __( 'Standings', 'leagueflow' ), 'edit_posts', $menu_slug . '-standings', array( $this, 'render_standings_page' ) );
 			add_submenu_page( $menu_slug, __( 'Knockout Brackets', 'leagueflow' ), __( 'Knockout Brackets', 'leagueflow' ), 'edit_posts', $menu_slug . '-brackets', array( $this, 'render_brackets_page' ) );
 		}
@@ -1045,7 +1068,7 @@ class Admin {
 							<td><?php echo esc_html( (string) $row['goals_for'] ); ?></td>
 							<td><?php echo esc_html( (string) $row['goals_against'] ); ?></td>
 							<td><?php echo esc_html( (string) $row['goal_difference'] ); ?></td>
-							<td><strong><?php echo esc_html( (string) $row['points'] ); ?></strong></td>
+							<td><strong><?php echo esc_html( (string) $row['points'] ); ?></strong><?php echo ! empty( $row['adjustment'] ) ? ' <span class="leagueflow-standings-adjustment">' . esc_html( sprintf( '%+d', (int) $row['adjustment'] ) ) . '</span>' : ''; ?></td>
 						</tr>
 					<?php endforeach; ?>
 				<?php endif; ?>
@@ -1127,7 +1150,7 @@ class Admin {
 													<td><?php echo esc_html( (string) $row['goals_for'] ); ?></td>
 													<td><?php echo esc_html( (string) $row['goals_against'] ); ?></td>
 													<td><?php echo esc_html( (string) $row['goal_difference'] ); ?></td>
-													<td><strong><?php echo esc_html( (string) $row['points'] ); ?></strong></td>
+													<td><strong><?php echo esc_html( (string) $row['points'] ); ?></strong><?php echo ! empty( $row['adjustment'] ) ? ' <span class="leagueflow-standings-adjustment">' . esc_html( sprintf( '%+d', (int) $row['adjustment'] ) ) . '</span>' : ''; ?></td>
 												</tr>
 											<?php endforeach; ?>
 										</tbody>
@@ -1172,6 +1195,163 @@ class Admin {
 			?>
 		</div>
 		<?php
+	}
+
+	/**
+	 * Render the fixtures generator admin page.
+	 *
+	 * @return void
+	 */
+	public function render_fixtures_page() {
+		$competition_id  = resolve_term_id( $_GET['competition'] ?? '', 'lf_competition' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$season_id       = resolve_term_id( $_GET['season'] ?? '', 'lf_season' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$league_level_id = resolve_term_id( $_GET['league_level'] ?? '', 'lf_league_level' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$sport_slug      = $this->get_current_requested_sport_slug();
+		$sport_id        = resolve_term_id( $sport_slug, 'lf_sport' );
+		$page            = $this->get_current_page_slug();
+
+		$context  = array(
+			'competition_id'  => $competition_id,
+			'season_id'       => $season_id,
+			'sport_id'        => $sport_id,
+			'league_level_id' => $league_level_id,
+		);
+		$team_ids = $this->fixture_generator->get_context_team_ids( $context );
+		?>
+		<div class="wrap leagueflow-admin-page">
+			<h1><?php esc_html_e( 'Fixture Generator', 'leagueflow' ); ?></h1>
+			<p><?php esc_html_e( 'Generate a round-robin schedule for the teams in the selected competition, season, sport, and level. Fixtures are created as drafts so you can review them before publishing, then hand them to the scheduling assistant for dates and venues.', 'leagueflow' ); ?></p>
+			<?php $this->render_context_filters( $page, $competition_id, $season_id, $sport_slug, $league_level_id ); ?>
+
+			<?php if ( count( $team_ids ) < 2 ) : ?>
+				<div class="notice notice-info inline"><p><?php esc_html_e( 'Fewer than two teams match the current filters. Choose a competition, season, or level that contains at least two teams.', 'leagueflow' ); ?></p></div>
+			<?php else : ?>
+				<h2><?php esc_html_e( 'Teams in scope', 'leagueflow' ); ?></h2>
+				<ul class="leagueflow-fixture-teams">
+					<?php foreach ( $team_ids as $team_id ) : ?>
+						<li><?php echo esc_html( get_the_title( $team_id ) ); ?></li>
+					<?php endforeach; ?>
+				</ul>
+				<p class="description">
+					<?php
+					printf(
+						/* translators: 1: single round-robin count, 2: double round-robin count. */
+						esc_html__( 'A single round-robin creates %1$d matches; a double (home and away) creates %2$d.', 'leagueflow' ),
+						absint( $this->fixture_generator->count_matches( count( $team_ids ), 1 ) ),
+						absint( $this->fixture_generator->count_matches( count( $team_ids ), 2 ) )
+					);
+					?>
+				</p>
+
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="leagueflow-fixture-form">
+					<?php wp_nonce_field( 'leagueflow_generate_fixtures', 'leagueflow_generate_fixtures_nonce' ); ?>
+					<input type="hidden" name="action" value="leagueflow_generate_fixtures" />
+					<input type="hidden" name="leagueflow_fixtures_page" value="<?php echo esc_attr( $page ); ?>" />
+					<input type="hidden" name="leagueflow_fixtures_sport" value="<?php echo esc_attr( $sport_slug ); ?>" />
+					<input type="hidden" name="leagueflow_fixtures_competition" value="<?php echo esc_attr( (string) $competition_id ); ?>" />
+					<input type="hidden" name="leagueflow_fixtures_season" value="<?php echo esc_attr( (string) $season_id ); ?>" />
+					<input type="hidden" name="leagueflow_fixtures_league_level" value="<?php echo esc_attr( (string) $league_level_id ); ?>" />
+
+					<table class="form-table" role="presentation">
+						<tr>
+							<th scope="row"><?php esc_html_e( 'Format', 'leagueflow' ); ?></th>
+							<td>
+								<label><input type="radio" name="leagueflow_fixtures_legs" value="1" checked /> <?php esc_html_e( 'Single round-robin (play each team once)', 'leagueflow' ); ?></label><br />
+								<label><input type="radio" name="leagueflow_fixtures_legs" value="2" /> <?php esc_html_e( 'Double round-robin (home and away)', 'leagueflow' ); ?></label>
+							</td>
+						</tr>
+						<tr>
+							<th scope="row"><?php esc_html_e( 'Save as', 'leagueflow' ); ?></th>
+							<td>
+								<label><input type="radio" name="leagueflow_fixtures_status" value="draft" checked /> <?php esc_html_e( 'Drafts (hidden from public standings until published)', 'leagueflow' ); ?></label><br />
+								<label><input type="radio" name="leagueflow_fixtures_status" value="publish" /> <?php esc_html_e( 'Published immediately', 'leagueflow' ); ?></label>
+							</td>
+						</tr>
+						<tr>
+							<th scope="row"><?php esc_html_e( 'Scheduling', 'leagueflow' ); ?></th>
+							<td>
+								<label><input type="checkbox" name="leagueflow_fixtures_schedule" value="1" /> <?php esc_html_e( 'Run the scheduling assistant on the new fixtures to assign dates and venues from field availability', 'leagueflow' ); ?></label>
+							</td>
+						</tr>
+					</table>
+
+					<?php submit_button( __( 'Generate fixtures', 'leagueflow' ) ); ?>
+					<p class="description"><?php esc_html_e( 'Generating does not remove existing matches. Delete previous fixtures first if you want to start clean.', 'leagueflow' ); ?></p>
+				</form>
+			<?php endif; ?>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Handle the fixture generation request.
+	 *
+	 * @return void
+	 */
+	public function handle_generate_fixtures() {
+		if ( ! current_user_can( 'edit_posts' ) ) {
+			wp_die( esc_html__( 'You do not have permission to do that.', 'leagueflow' ) );
+		}
+
+		check_admin_referer( 'leagueflow_generate_fixtures', 'leagueflow_generate_fixtures_nonce' );
+
+		$page            = sanitize_key( wp_unslash( $_POST['leagueflow_fixtures_page'] ?? 'leagueflow-fixtures' ) );
+		$page            = $page ? $page : 'leagueflow-fixtures';
+		$sport_slug      = sanitize_key( wp_unslash( $_POST['leagueflow_fixtures_sport'] ?? '' ) );
+		$competition_id  = absint( wp_unslash( $_POST['leagueflow_fixtures_competition'] ?? 0 ) );
+		$season_id       = absint( wp_unslash( $_POST['leagueflow_fixtures_season'] ?? 0 ) );
+		$league_level_id = absint( wp_unslash( $_POST['leagueflow_fixtures_league_level'] ?? 0 ) );
+		$legs            = 2 === absint( wp_unslash( $_POST['leagueflow_fixtures_legs'] ?? 1 ) ) ? 2 : 1;
+		$status          = 'publish' === sanitize_key( wp_unslash( $_POST['leagueflow_fixtures_status'] ?? 'draft' ) ) ? 'publish' : 'draft';
+
+		$result = $this->fixture_generator->generate(
+			array(
+				'competition_id'  => $competition_id,
+				'season_id'       => $season_id,
+				'sport_id'        => resolve_term_id( $sport_slug, 'lf_sport' ),
+				'league_level_id' => $league_level_id,
+				'legs'            => $legs,
+				'post_status'     => $status,
+				'auto_schedule'   => ! empty( $_POST['leagueflow_fixtures_schedule'] ),
+			)
+		);
+
+		if ( is_wp_error( $result ) ) {
+			$this->queue_notice( $result->get_error_message(), 'error' );
+		} else {
+			$message = sprintf(
+				/* translators: 1: matches created, 2: number of teams. */
+				_n( 'Generated %1$d fixture for %2$d teams.', 'Generated %1$d fixtures for %2$d teams.', (int) $result['created'], 'leagueflow' ),
+				absint( $result['created'] ),
+				absint( $result['teams'] )
+			);
+
+			if ( ! empty( $result['scheduled'] ) ) {
+				$message .= ' ' . sprintf(
+					/* translators: %d: matches scheduled. */
+					_n( '%d received a date and venue.', '%d received dates and venues.', (int) $result['scheduled'], 'leagueflow' ),
+					absint( $result['scheduled'] )
+				);
+			}
+
+			$this->queue_notice( $message, 'success' );
+		}
+
+		wp_safe_redirect(
+			add_query_arg(
+				array_filter(
+					array(
+						'page'         => $page,
+						'sport'        => $sport_slug,
+						'competition'  => $competition_id,
+						'season'       => $season_id,
+						'league_level' => $league_level_id,
+					)
+				),
+				admin_url( 'admin.php' )
+			)
+		);
+		exit;
 	}
 
 	/**
@@ -1258,6 +1438,14 @@ class Admin {
 				<td>
 					<?php $this->render_select( 'lf_league_level_id', $this->get_league_level_options(), $league_level_id, __( 'Recreational', 'leagueflow' ) ); ?>
 					<p class="description"><?php esc_html_e( 'Teams, players, matches, standings, and schedules can be separated by league level inside each sport.', 'leagueflow' ); ?></p>
+				</td>
+			</tr>
+			<tr>
+				<th scope="row"><label for="lf_points_adjustment"><?php esc_html_e( 'Points Adjustment', 'leagueflow' ); ?></label></th>
+				<td>
+					<input type="number" step="1" id="lf_points_adjustment" name="lf_points_adjustment" class="small-text" value="<?php echo esc_attr( (string) (int) get_post_meta( $post->ID, 'lf_points_adjustment', true ) ); ?>" />
+					<input type="text" id="lf_adjustment_note" name="lf_adjustment_note" class="regular-text" value="<?php echo esc_attr( (string) get_post_meta( $post->ID, 'lf_adjustment_note', true ) ); ?>" placeholder="<?php esc_attr_e( 'Reason (e.g. late-registration deduction)', 'leagueflow' ); ?>" />
+					<p class="description"><?php esc_html_e( 'Signed points offset applied on top of the derived standings. Use a negative number for a deduction. Standings still compute from matches; this only adjusts the total.', 'leagueflow' ); ?></p>
 				</td>
 			</tr>
 		</table>
@@ -1483,6 +1671,13 @@ class Admin {
 				<td><?php $this->render_select( 'lf_status', $this->statuses, (string) get_post_meta( $post->ID, 'lf_status', true ), __( 'Select status', 'leagueflow' ) ); ?></td>
 			</tr>
 			<tr>
+				<th scope="row"><label for="lf_outcome"><?php esc_html_e( 'Result Type', 'leagueflow' ); ?></label></th>
+				<td>
+					<?php $this->render_select( 'lf_outcome', $this->match_outcomes, (string) get_post_meta( $post->ID, 'lf_outcome', true ), __( 'Played as normal', 'leagueflow' ) ); ?>
+					<p class="description"><?php esc_html_e( 'Mark a forfeit to decide a finished match without a played score. The non-forfeiting team is credited a walkover win in the standings.', 'leagueflow' ); ?></p>
+				</td>
+			</tr>
+			<tr>
 				<th scope="row"><?php esc_html_e( 'Sport', 'leagueflow' ); ?></th>
 				<td>
 					<strong><?php echo esc_html( $this->sports_manager->get_definition( $sport_slug )['label'] ); ?></strong>
@@ -1649,6 +1844,14 @@ class Admin {
 		foreach ( $manager_ids as $manager_id ) {
 			add_user_role_if_missing( $manager_id, 'leagueflow_team_manager' );
 		}
+
+		$adjustment = isset( $_POST['lf_points_adjustment'] ) ? (int) wp_unslash( $_POST['lf_points_adjustment'] ) : 0;
+		if ( 0 === $adjustment ) {
+			delete_post_meta( $post_id, 'lf_points_adjustment' );
+		} else {
+			update_post_meta( $post_id, 'lf_points_adjustment', $adjustment );
+		}
+		$this->update_or_delete_meta( $post_id, 'lf_adjustment_note', sanitize_text_field( wp_unslash( $_POST['lf_adjustment_note'] ?? '' ) ) );
 
 		$this->assign_default_sport_if_missing( $post_id );
 		$league_level_id = $this->assign_league_level_from_request( $post_id );
@@ -1856,6 +2059,10 @@ class Admin {
 		$this->update_or_delete_meta( $post_id, 'lf_home_score', '' === $home_score ? '' : (string) absint( $home_score ) );
 		$this->update_or_delete_meta( $post_id, 'lf_away_score', '' === $away_score ? '' : (string) absint( $away_score ) );
 		update_post_meta( $post_id, 'lf_status', $status );
+
+		$outcome = sanitize_key( wp_unslash( $_POST['lf_outcome'] ?? '' ) );
+		$this->update_or_delete_meta( $post_id, 'lf_outcome', isset( $this->match_outcomes[ $outcome ] ) ? $outcome : '' );
+
 		update_post_meta( $post_id, 'lf_is_knockout', $is_knockout );
 
 		foreach ( Sports_Manager::get_all_match_meta_keys() as $meta_key ) {
@@ -3687,7 +3894,7 @@ class Admin {
 	 * @return string
 	 */
 	protected function get_sport_menu_slug_from_page_slug( $page ) {
-		if ( ! preg_match( '/^leagueflow-sport-(.+?)(?:-(?:standings|brackets|fields))?$/', $page, $matches ) ) {
+		if ( ! preg_match( '/^leagueflow-sport-(.+?)(?:-(?:fixtures|standings|brackets|fields))?$/', $page, $matches ) ) {
 			return '';
 		}
 

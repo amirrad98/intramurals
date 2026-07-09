@@ -290,6 +290,10 @@ class Portal {
 				$this->handle_review_join_request( $user );
 				break;
 
+			case 'set_availability':
+				$this->handle_set_availability( $user );
+				break;
+
 			default:
 				$this->redirect_with_notice( 'invalid-request' );
 		}
@@ -503,7 +507,7 @@ class Portal {
 
 			<div class="leagueflow-portal__subsection">
 				<h3><?php esc_html_e( 'Upcoming Games', 'leagueflow' ); ?></h3>
-				<?php echo ! empty( $team_ids ) ? $this->render_upcoming_matches_for_teams( $team_ids, 6 ) : '<p>' . esc_html__( 'You are not assigned to a team yet.', 'leagueflow' ) . '</p>'; ?>
+				<?php echo ! empty( $team_ids ) ? $this->render_player_rsvp_matches( $player_id, $team_ids, 6 ) : '<p>' . esc_html__( 'You are not assigned to a team yet.', 'leagueflow' ) . '</p>'; ?>
 			</div>
 
 			<div class="leagueflow-portal__subsection">
@@ -785,6 +789,7 @@ class Portal {
 			<div class="leagueflow-portal__subsection">
 				<h4><?php esc_html_e( 'Upcoming Games', 'leagueflow' ); ?></h4>
 				<?php echo $this->render_upcoming_matches( $team_id, 5 ); ?>
+				<?php echo $this->render_team_availability_summary( $team_id, 5 ); ?>
 			</div>
 		</article>
 		<?php
@@ -2660,6 +2665,161 @@ class Portal {
 	}
 
 	/**
+	 * Handle a player setting their availability for a match.
+	 *
+	 * @param \WP_User $user Current user.
+	 * @return void
+	 */
+	protected function handle_set_availability( $user ) {
+		$player_id = $this->get_player_id_for_user( $user, false );
+
+		if ( ! $player_id ) {
+			$this->redirect_with_notice( 'player-missing' );
+		}
+
+		$match_id = absint( wp_unslash( $_POST['lf_match_id'] ?? 0 ) );
+		$status   = sanitize_key( wp_unslash( $_POST['lf_availability_status'] ?? '' ) );
+
+		if ( ! $match_id || ! isset( Availability::statuses()[ $status ] ) ) {
+			$this->redirect_with_notice( 'invalid-request' );
+		}
+
+		if ( ! $this->player_can_rsvp_match( $player_id, $match_id ) ) {
+			$this->redirect_with_notice( 'access-denied' );
+		}
+
+		Availability::set( $player_id, $match_id, $status );
+
+		$this->redirect_with_notice( 'availability-saved' );
+	}
+
+	/**
+	 * Whether a player may set availability for a match (on one of their teams).
+	 *
+	 * @param int $player_id Player ID.
+	 * @param int $match_id Match ID.
+	 * @return bool
+	 */
+	protected function player_can_rsvp_match( $player_id, $match_id ) {
+		if ( 'lf_match' !== get_post_type( $match_id ) ) {
+			return false;
+		}
+
+		$team_ids = get_player_team_ids( $player_id );
+
+		if ( empty( $team_ids ) ) {
+			return false;
+		}
+
+		$home = (int) get_post_meta( $match_id, 'lf_home_team_id', true );
+		$away = (int) get_post_meta( $match_id, 'lf_away_team_id', true );
+
+		return in_array( $home, $team_ids, true ) || in_array( $away, $team_ids, true );
+	}
+
+	/**
+	 * Render upcoming matches for a player with an availability (RSVP) control.
+	 *
+	 * @param int        $player_id Player ID.
+	 * @param array<int> $team_ids Team IDs.
+	 * @param int        $limit Limit.
+	 * @return string
+	 */
+	protected function render_player_rsvp_matches( $player_id, $team_ids, $limit = 6 ) {
+		$matches = $this->get_upcoming_matches_for_teams( $team_ids, $limit );
+
+		if ( empty( $matches ) ) {
+			return '<p>' . esc_html__( 'No upcoming games are scheduled yet.', 'leagueflow' ) . '</p>';
+		}
+
+		$match_ids = array_map(
+			static function( $match ) {
+				return (int) $match['id'];
+			},
+			$matches
+		);
+
+		$statuses = Availability::statuses_for_player( $player_id, $match_ids );
+		$labels   = Availability::statuses();
+
+		ob_start();
+		?>
+		<div class="leagueflow-match-stack leagueflow-portal-matches">
+			<?php foreach ( $matches as $match ) : ?>
+				<?php $current = isset( $statuses[ (int) $match['id'] ] ) ? $statuses[ (int) $match['id'] ] : ''; ?>
+				<article class="leagueflow-match-row">
+					<header class="leagueflow-match-row__header">
+						<strong><?php echo esc_html( $match['sport_label'] ); ?></strong>
+						<?php if ( ! empty( $match['datetime'] ) ) : ?><time datetime="<?php echo esc_attr( $match['datetime_raw'] ); ?>"><?php echo esc_html( $match['datetime'] ); ?></time><?php endif; ?>
+					</header>
+					<div class="leagueflow-match-row__teams">
+						<span><?php echo esc_html( $match['home_team'] ); ?></span>
+						<span class="leagueflow-match-row__score"><?php esc_html_e( 'vs', 'leagueflow' ); ?></span>
+						<span><?php echo esc_html( $match['away_team'] ); ?></span>
+					</div>
+					<?php if ( ! empty( $match['venue'] ) ) : ?><p class="leagueflow-match-row__venue"><?php echo esc_html( $match['venue'] ); ?></p><?php endif; ?>
+					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="leagueflow-rsvp">
+						<?php echo $this->render_hidden_fields( 'set_availability' ); ?>
+						<input type="hidden" name="lf_match_id" value="<?php echo esc_attr( (string) $match['id'] ); ?>" />
+						<span class="leagueflow-rsvp__label"><?php esc_html_e( 'Are you playing?', 'leagueflow' ); ?></span>
+						<span class="leagueflow-rsvp__options">
+							<?php foreach ( $labels as $status_key => $status_label ) : ?>
+								<button type="submit" name="lf_availability_status" value="<?php echo esc_attr( $status_key ); ?>" class="leagueflow-rsvp__button leagueflow-rsvp__button--<?php echo esc_attr( $status_key ); ?><?php echo $current === $status_key ? ' is-active' : ''; ?>" aria-pressed="<?php echo $current === $status_key ? 'true' : 'false'; ?>">
+									<?php echo esc_html( $status_label ); ?>
+								</button>
+							<?php endforeach; ?>
+						</span>
+					</form>
+				</article>
+			<?php endforeach; ?>
+		</div>
+		<?php
+		return (string) ob_get_clean();
+	}
+
+	/**
+	 * Render an availability roll-up for a team's upcoming matches (manager view).
+	 *
+	 * @param int $team_id Team ID.
+	 * @param int $limit Limit.
+	 * @return string
+	 */
+	protected function render_team_availability_summary( $team_id, $limit = 6 ) {
+		$matches = $this->get_upcoming_matches( $team_id, $limit );
+
+		if ( empty( $matches ) ) {
+			return '';
+		}
+
+		ob_start();
+		?>
+		<div class="leagueflow-availability-rollup">
+			<h4><?php esc_html_e( 'Player availability', 'leagueflow' ); ?></h4>
+			<ul>
+				<?php foreach ( $matches as $match ) : ?>
+					<?php $counts = Availability::counts( (int) $match['id'] ); ?>
+					<li>
+						<span class="leagueflow-availability-rollup__match"><?php echo esc_html( $match['home_team'] . ' vs ' . $match['away_team'] ); ?></span>
+						<span class="leagueflow-availability-rollup__counts">
+							<?php
+							printf(
+								/* translators: 1: available count, 2: maybe count, 3: out count. */
+								esc_html__( '%1$d in, %2$d maybe, %3$d out', 'leagueflow' ),
+								absint( $counts['available'] ),
+								absint( $counts['maybe'] ),
+								absint( $counts['out'] )
+							);
+							?>
+						</span>
+					</li>
+				<?php endforeach; ?>
+			</ul>
+		</div>
+		<?php
+		return (string) ob_get_clean();
+	}
+
+	/**
 	 * Render hidden form fields.
 	 *
 	 * @param string $portal_action Portal action.
@@ -2702,6 +2862,7 @@ class Portal {
 			'placement-request-sent' => __( 'Your placement request was sent.', 'leagueflow' ),
 			'join-request-approved' => __( 'Join request approved.', 'leagueflow' ),
 			'join-request-declined' => __( 'Join request declined.', 'leagueflow' ),
+			'availability-saved' => __( 'Availability updated.', 'leagueflow' ),
 			'join-request-exists' => __( 'You already have a pending request for that team.', 'leagueflow' ),
 			'placement-request-exists' => __( 'You already have a pending placement request for that sport.', 'leagueflow' ),
 			'join-request-member' => __( 'You are already on that team.', 'leagueflow' ),

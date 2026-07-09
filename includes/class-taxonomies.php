@@ -21,8 +21,92 @@ class Taxonomies {
 	 */
 	public function register() {
 		add_action( 'init', array( $this, 'register_taxonomies' ) );
+		add_action( 'init', array( $this, 'register_term_meta' ) );
 		add_action( 'init', 'LeagueFlow\\ensure_default_league_levels', 30 );
 		add_action( 'init', 'LeagueFlow\\ensure_default_league_level_assignments', 35 );
+
+		add_action( 'lf_season_add_form_fields', array( $this, 'render_season_current_add_field' ) );
+		add_action( 'lf_season_edit_form_fields', array( $this, 'render_season_current_edit_field' ) );
+		add_action( 'created_lf_season', array( $this, 'save_season_current_field' ) );
+		add_action( 'edited_lf_season', array( $this, 'save_season_current_field' ) );
+	}
+
+	/**
+	 * Register season term meta.
+	 *
+	 * @return void
+	 */
+	public function register_term_meta() {
+		register_term_meta(
+			'lf_season',
+			'lf_is_current',
+			array(
+				'type'          => 'boolean',
+				'single'        => true,
+				'show_in_rest'  => true,
+				'auth_callback' => static function() {
+					return current_user_can( 'manage_categories' );
+				},
+			)
+		);
+	}
+
+	/**
+	 * Render the "current season" checkbox on the add-season screen.
+	 *
+	 * @return void
+	 */
+	public function render_season_current_add_field() {
+		?>
+		<div class="form-field">
+			<label>
+				<input type="checkbox" name="lf_is_current" value="1" />
+				<?php esc_html_e( 'Set as the current season', 'leagueflow' ); ?>
+			</label>
+			<p><?php esc_html_e( 'Blocks, shortcodes, and the portal default to the current season when none is specified.', 'leagueflow' ); ?></p>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render the "current season" checkbox on the edit-season screen.
+	 *
+	 * @param \WP_Term $term Season term.
+	 * @return void
+	 */
+	public function render_season_current_edit_field( $term ) {
+		$is_current = (bool) get_term_meta( $term->term_id, 'lf_is_current', true );
+		?>
+		<tr class="form-field">
+			<th scope="row"><?php esc_html_e( 'Current season', 'leagueflow' ); ?></th>
+			<td>
+				<label>
+					<input type="checkbox" name="lf_is_current" value="1" <?php checked( $is_current ); ?> />
+					<?php esc_html_e( 'Set as the current season', 'leagueflow' ); ?>
+				</label>
+				<p class="description"><?php esc_html_e( 'Only one season can be current. Setting this clears the flag from any other season.', 'leagueflow' ); ?></p>
+			</td>
+		</tr>
+		<?php
+	}
+
+	/**
+	 * Persist the "current season" flag, enforcing a single current season.
+	 *
+	 * @param int $term_id Season term ID.
+	 * @return void
+	 */
+	public function save_season_current_field( $term_id ) {
+		// The taxonomy term screens carry WordPress's own nonce, verified by core before these hooks fire.
+		if ( ! current_user_can( 'manage_categories' ) ) {
+			return;
+		}
+
+		if ( ! empty( $_POST['lf_is_current'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
+			set_current_season( $term_id );
+		} else {
+			delete_term_meta( $term_id, 'lf_is_current' );
+		}
 	}
 
 	/**

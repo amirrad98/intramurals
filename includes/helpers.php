@@ -19,6 +19,7 @@ function defaults() {
 		'points_win'            => 3,
 		'points_draw'           => 1,
 		'points_loss'           => 0,
+		'forfeit_score_winner'  => 3,
 		'team_slug'             => 'teams',
 		'match_slug'            => 'matches',
 		'competition_slug'      => 'competition',
@@ -27,6 +28,9 @@ function defaults() {
 		'show_player_photos'    => 1,
 		'date_time_format'      => 'F j, Y g:i a',
 		'tie_breakers'          => array( 'goal_difference', 'goals_for', 'wins', 'name' ),
+		'min_rest_days'             => 0,
+		'min_days_between_rematch'  => 0,
+		'max_games_per_day_per_team' => 0,
 		'captain_registration_open' => 1,
 		'player_registration_open' => 0,
 		'cleanup_on_uninstall'  => 0,
@@ -502,6 +506,97 @@ function resolve_post_id( $value, $post_type ) {
 	}
 
 	return 0;
+}
+
+/**
+ * Get the ID of the season flagged as current, if any.
+ *
+ * @return int Season term ID, or 0 when no season is flagged current.
+ */
+function get_current_season_id() {
+	static $cache = null;
+
+	if ( null !== $cache ) {
+		return $cache;
+	}
+
+	$terms = get_terms(
+		array(
+			'taxonomy'   => 'lf_season',
+			'hide_empty' => false,
+			'number'     => 1,
+			'fields'     => 'ids',
+			'meta_query' => array(
+				array(
+					'key'   => 'lf_is_current',
+					'value' => '1',
+				),
+			),
+		)
+	);
+
+	$cache = ( ! is_wp_error( $terms ) && ! empty( $terms ) ) ? (int) $terms[0] : 0;
+
+	return $cache;
+}
+
+/**
+ * Flag one season as the current one, clearing the flag from all others.
+ *
+ * @param int $term_id Season term ID to make current, or 0 to clear all.
+ * @return void
+ */
+function set_current_season( $term_id ) {
+	$term_id = absint( $term_id );
+
+	$flagged = get_terms(
+		array(
+			'taxonomy'   => 'lf_season',
+			'hide_empty' => false,
+			'fields'     => 'ids',
+			'meta_query' => array(
+				array(
+					'key'   => 'lf_is_current',
+					'value' => '1',
+				),
+			),
+		)
+	);
+
+	if ( ! is_wp_error( $flagged ) ) {
+		foreach ( $flagged as $existing_id ) {
+			if ( (int) $existing_id !== $term_id ) {
+				delete_term_meta( (int) $existing_id, 'lf_is_current' );
+			}
+		}
+	}
+
+	if ( $term_id ) {
+		update_term_meta( $term_id, 'lf_is_current', 1 );
+	}
+}
+
+/**
+ * Resolve a season reference, falling back to the current season.
+ *
+ * An explicit ID or slug is honored. The literal "current" resolves to the
+ * flagged season. An empty value falls back to the current season when one is
+ * flagged, and otherwise to 0 (all seasons) so behavior is unchanged for sites
+ * that never designate a current season.
+ *
+ * @param mixed $value Season reference (ID, slug, "current", or empty).
+ * @return int Season term ID, or 0.
+ */
+function resolve_season_context( $value ) {
+	if ( is_string( $value ) && 'current' === strtolower( trim( $value ) ) ) {
+		return get_current_season_id();
+	}
+
+	if ( '' === $value || null === $value || 0 === $value || '0' === $value ) {
+		return get_current_season_id();
+	}
+
+	return resolve_term_id( $value, 'lf_season' );
 }
 
 /**

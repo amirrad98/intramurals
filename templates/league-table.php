@@ -45,7 +45,12 @@ defined( 'ABSPATH' ) || exit;
 						<td><?php echo esc_html( (string) $row['goals_for'] ); ?></td>
 						<td><?php echo esc_html( (string) $row['goals_against'] ); ?></td>
 						<td><?php echo esc_html( (string) $row['goal_difference'] ); ?></td>
-						<td><strong><?php echo esc_html( (string) $row['points'] ); ?></strong></td>
+						<td>
+							<strong><?php echo esc_html( (string) $row['points'] ); ?></strong>
+							<?php if ( ! empty( $row['adjustment'] ) ) : ?>
+								<span class="leagueflow-table__adjustment"<?php echo ! empty( $row['adjustment_note'] ) ? ' title="' . esc_attr( (string) $row['adjustment_note'] ) . '"' : ''; ?>><?php echo esc_html( sprintf( '%+d', (int) $row['adjustment'] ) ); ?></span>
+							<?php endif; ?>
+						</td>
 					</tr>
 				<?php endforeach; ?>
 			</tbody>

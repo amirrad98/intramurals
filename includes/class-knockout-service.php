@@ -135,6 +135,140 @@ class Knockout_Service {
 	}
 
 	/**
+	 * Build the bracket as a tree derived from next-match links.
+	 *
+	 * Each node's children are the matches that feed into it (home slot first,
+	 * then away). Roots are matches with no outgoing link (typically the final).
+	 * When no match links to another, 'linked' is false and callers should fall
+	 * back to the round-column layout.
+	 *
+	 * @param int $competition_id Competition term ID.
+	 * @param int $season_id Season term ID.
+	 * @param int $sport_id Sport term ID.
+	 * @param int $league_level_id League level term ID.
+	 * @return array{linked: bool, roots: array<int, array<string, mixed>>}
+	 */
+	public function get_bracket_tree( $competition_id = 0, $season_id = 0, $sport_id = 0, $league_level_id = 0 ) {
+		$matches = get_posts( $this->build_query_args( $competition_id, $season_id, $sport_id, $league_level_id ) );
+
+		if ( empty( $matches ) ) {
+			return array(
+				'linked' => false,
+				'roots'  => array(),
+			);
+		}
+
+		$by_id       = array();
+		$children_of = array();
+		$has_parent  = array();
+		$linked      = false;
+
+		foreach ( $matches as $match ) {
+			$by_id[ (int) $match->ID ] = $match;
+		}
+
+		foreach ( $matches as $match ) {
+			$next_id = (int) get_post_meta( $match->ID, 'lf_next_match_id', true );
+
+			if ( $next_id && isset( $by_id[ $next_id ] ) ) {
+				$slot = get_post_meta( $match->ID, 'lf_next_match_slot', true );
+				$slot = in_array( $slot, array( 'home', 'away' ), true ) ? $slot : 'home';
+
+				$children_of[ $next_id ][] = array(
+					'slot'  => $slot,
+					'match' => $match,
+				);
+
+				$has_parent[ (int) $match->ID ] = true;
+				$linked                         = true;
+			}
+		}
+
+		$roots = array();
+
+		foreach ( $matches as $match ) {
+			if ( empty( $has_parent[ (int) $match->ID ] ) ) {
+				$roots[] = $this->build_bracket_node( $match, $children_of, array() );
+			}
+		}
+
+		return array(
+			'linked' => $linked,
+			'roots'  => $roots,
+		);
+	}
+
+	/**
+	 * Recursively build a bracket node and its feeding children.
+	 *
+	 * @param \WP_Post                              $match Match post.
+	 * @param array<int, array<int, array<string, mixed>>> $children_of Child index.
+	 * @param array<int, bool>                      $visited Guard against cycles.
+	 * @return array<string, mixed>
+	 */
+	protected function build_bracket_node( $match, $children_of, $visited ) {
+		$match_id             = (int) $match->ID;
+		$visited[ $match_id ] = true;
+
+		$node             = $this->format_bracket_match( $match );
+		$node['children'] = array();
+
+		if ( ! empty( $children_of[ $match_id ] ) ) {
+			$children = $children_of[ $match_id ];
+
+			usort(
+				$children,
+				static function( $left, $right ) {
+					// Home feed above away feed.
+					return ( 'home' === $left['slot'] ? 0 : 1 ) <=> ( 'home' === $right['slot'] ? 0 : 1 );
+				}
+			);
+
+			foreach ( $children as $child ) {
+				$child_id = (int) $child['match']->ID;
+
+				if ( isset( $visited[ $child_id ] ) ) {
+					continue;
+				}
+
+				$node['children'][] = $this->build_bracket_node( $child['match'], $children_of, $visited );
+			}
+		}
+
+		return $node;
+	}
+
+	/**
+	 * Format a match post into bracket display data.
+	 *
+	 * @param \WP_Post $match Match post.
+	 * @return array<string, mixed>
+	 */
+	protected function format_bracket_match( $match ) {
+		$home_team_id = (int) get_post_meta( $match->ID, 'lf_home_team_id', true );
+		$away_team_id = (int) get_post_meta( $match->ID, 'lf_away_team_id', true );
+
+		return array(
+			'id'             => (int) $match->ID,
+			'title'          => $match->post_title,
+			'permalink'      => get_permalink( $match->ID ),
+			'round_label'    => (string) get_post_meta( $match->ID, 'lf_round_label', true ),
+			'home_team_id'   => $home_team_id,
+			'away_team_id'   => $away_team_id,
+			'home_team'      => $home_team_id ? get_the_title( $home_team_id ) : '',
+			'away_team'      => $away_team_id ? get_the_title( $away_team_id ) : '',
+			'home_score'     => get_post_meta( $match->ID, 'lf_home_score', true ),
+			'away_score'     => get_post_meta( $match->ID, 'lf_away_score', true ),
+			'status'         => (string) get_post_meta( $match->ID, 'lf_status', true ),
+			'datetime'       => format_match_datetime( (string) get_post_meta( $match->ID, 'lf_match_datetime', true ) ),
+			'datetime_raw'   => (string) get_post_meta( $match->ID, 'lf_match_datetime', true ),
+			'venue'          => get_post_meta( $match->ID, 'lf_venue', true ),
+			'winner_team_id' => $this->determine_winner_team_id( $match->ID ),
+			'is_bye'         => ( $home_team_id && ! $away_team_id ) || ( ! $home_team_id && $away_team_id ),
+		);
+	}
+
+	/**
 	 * Advance the winner into the next match.
 	 *
 	 * @param int $match_id Match ID.
@@ -183,6 +317,20 @@ class Knockout_Service {
 
 		if ( $winner_id && in_array( $winner_id, array( $home_team_id, $away_team_id ), true ) ) {
 			return $winner_id;
+		}
+
+		$outcome = sanitize_key( (string) get_post_meta( $match_id, 'lf_outcome', true ) );
+
+		if ( 'forfeit_home' === $outcome ) {
+			return $away_team_id;
+		}
+
+		if ( 'forfeit_away' === $outcome ) {
+			return $home_team_id;
+		}
+
+		if ( 'double_forfeit' === $outcome ) {
+			return 0;
 		}
 
 		if ( 'finished' !== get_post_meta( $match_id, 'lf_status', true ) ) {
