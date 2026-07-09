@@ -1,0 +1,19 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/block.json",
+	"apiVersion": 3,
+	"name": "leagueflow/match-card",
+	"title": "Match Card",
+	"category": "widgets",
+	"icon": "excerpt-view",
+	"description": "Display one featured match.",
+	"textdomain": "leagueflow",
+	"attributes": {
+		"match": {
+			"type": "string",
+			"default": ""
+		}
+	},
+	"editorScript": "leagueflow-blocks",
+	"editorStyle": "leagueflow-editor",
+	"style": "leagueflow-frontend"
+}

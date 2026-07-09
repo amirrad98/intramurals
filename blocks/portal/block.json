@@ -1,0 +1,20 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/block.json",
+	"apiVersion": 3,
+	"name": "leagueflow/portal",
+	"title": "LeagueFlow Portal",
+	"category": "widgets",
+	"icon": "id-alt",
+	"description": "Display the logged-in player and team manager portal.",
+	"textdomain": "leagueflow",
+	"supports": {
+		"align": [
+			"wide",
+			"full"
+		],
+		"html": false
+	},
+	"editorScript": "leagueflow-blocks",
+	"editorStyle": "leagueflow-editor",
+	"style": "leagueflow-frontend"
+}

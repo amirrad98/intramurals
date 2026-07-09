@@ -1,0 +1,2296 @@
+.leagueflow {
+	--leagueflow-border: #ccd0d4;
+	--leagueflow-surface: #fff;
+	--leagueflow-text: #1d2327;
+	--leagueflow-muted: #50575e;
+	--leagueflow-accent: #0a4b78;
+	--leagueflow-success: #0f6b32;
+	color: var(--leagueflow-text);
+}
+
+.leagueflow a {
+	color: var(--leagueflow-accent);
+	text-decoration: none;
+}
+
+.leagueflow a:hover,
+.leagueflow a:focus {
+	text-decoration: underline;
+}
+
+.leagueflow-table,
+.leagueflow-roster-table {
+	width: 100%;
+	border-collapse: collapse;
+	background: var(--leagueflow-surface);
+	border: 1px solid var(--leagueflow-border);
+	font-size: 0.95rem;
+}
+
+.leagueflow-table th,
+.leagueflow-table td,
+.leagueflow-roster-table th,
+.leagueflow-roster-table td {
+	padding: 0.75rem;
+	border-bottom: 1px solid var(--leagueflow-border);
+	text-align: left;
+	vertical-align: middle;
+}
+
+.leagueflow-table thead th,
+.leagueflow-roster-table thead th {
+	background: #f6f7f7;
+	font-weight: 600;
+}
+
+.leagueflow-table__team,
+.leagueflow-match-row__teams,
+.leagueflow-match-card__team {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+}
+
+.leagueflow-table__logo-wrap img,
+.leagueflow-team-card__media img,
+.leagueflow-team-header__media img,
+.leagueflow-match-card__logo img,
+.leagueflow-roster-table__photo img {
+	width: 48px;
+	height: 48px;
+	object-fit: cover;
+	border-radius: 50%;
+}
+
+.leagueflow-team-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+	gap: 1rem;
+}
+
+.leagueflow-team-card,
+.leagueflow-match-row,
+.leagueflow-bracket__match,
+.leagueflow-match-card {
+	background: var(--leagueflow-surface);
+	border: 1px solid var(--leagueflow-border);
+	padding: 1rem;
+}
+
+.leagueflow-team-card {
+	display: flex;
+	gap: 1rem;
+}
+
+.leagueflow-meta-list {
+	list-style: none;
+	padding: 0;
+	margin: 0.5rem 0 0;
+}
+
+.leagueflow-meta-list li {
+	margin-bottom: 0.25rem;
+}
+
+.leagueflow-match-stack {
+	display: grid;
+	gap: 1rem;
+}
+
+.leagueflow-match-row__header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 1rem;
+	margin-bottom: 0.75rem;
+	color: var(--leagueflow-muted);
+	font-size: 0.95rem;
+}
+
+.leagueflow-match-row__teams {
+	font-size: 1rem;
+	font-weight: 600;
+	justify-content: space-between;
+}
+
+.leagueflow-match-row__score,
+.leagueflow-match-card__score {
+	min-width: 80px;
+	text-align: center;
+}
+
+.leagueflow-match-row__venue {
+	margin: 0.75rem 0 0.5rem;
+	color: var(--leagueflow-muted);
+}
+
+.leagueflow-match-card__header {
+	text-align: center;
+	margin-bottom: 1.5rem;
+}
+
+.leagueflow-match-card__header p {
+	margin: 0.25rem 0;
+	color: var(--leagueflow-muted);
+}
+
+.leagueflow-match-card__teams {
+	display: grid;
+	grid-template-columns: 1fr auto 1fr;
+	gap: 1rem;
+	align-items: center;
+	margin-bottom: 1.5rem;
+}
+
+.leagueflow-match-card__team {
+	flex-direction: column;
+	text-align: center;
+}
+
+.leagueflow-match-card__score strong {
+	font-size: 2rem;
+	display: block;
+}
+
+.leagueflow-match-card__details {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+	gap: 1rem;
+}
+
+.leagueflow-badge {
+	display: inline-block;
+	padding: 0.15rem 0.5rem;
+	border: 1px solid var(--leagueflow-border);
+	background: #f6f7f7;
+	font-size: 0.8rem;
+	margin-left: 0.35rem;
+}
+
+.leagueflow-sport-standings {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+	gap: 1rem;
+}
+
+.leagueflow-sport-standings__panel {
+	background: var(--leagueflow-surface);
+	border: 1px solid var(--leagueflow-border);
+}
+
+.leagueflow-sport-standings__summary {
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	padding: 1rem;
+	font-weight: 700;
+}
+
+.leagueflow-sport-standings__summary::-webkit-details-marker {
+	display: none;
+}
+
+.leagueflow-sport-standings__summary::after {
+	content: '+';
+	font-weight: 700;
+}
+
+.leagueflow-sport-standings__panel[open] .leagueflow-sport-standings__summary::after {
+	content: '−';
+}
+
+.leagueflow-sport-standings__label {
+	font-size: 1.05rem;
+}
+
+.leagueflow-sport-standings__meta {
+	color: var(--leagueflow-muted);
+	font-size: 0.85rem;
+	font-weight: 400;
+}
+
+.leagueflow-sport-standings__body {
+	border-top: 1px solid var(--leagueflow-border);
+	padding: 1rem;
+}
+
+.leagueflow-sport-standings__body .leagueflow-table-wrap {
+	overflow-x: auto;
+}
+
+.leagueflow-bracket {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+	gap: 1rem;
+	align-items: start;
+}
+
+.leagueflow-bracket__round h3 {
+	margin-top: 0;
+	padding-bottom: 0.5rem;
+	border-bottom: 2px solid var(--leagueflow-border);
+}
+
+.leagueflow-bracket__match {
+	margin-bottom: 1rem;
+}
+
+.leagueflow-bracket__match time {
+	display: block;
+	font-size: 0.9rem;
+	color: var(--leagueflow-muted);
+	margin-bottom: 0.75rem;
+}
+
+.leagueflow-bracket__team {
+	display: flex;
+	justify-content: space-between;
+	gap: 1rem;
+	padding: 0.5rem 0;
+	border-bottom: 1px solid #eef0f1;
+}
+
+.leagueflow-bracket__team.is-winner {
+	font-weight: 700;
+	color: var(--leagueflow-success);
+}
+
+.leagueflow-team-header {
+	display: flex;
+	gap: 1.5rem;
+	align-items: center;
+	margin-bottom: 1.5rem;
+}
+
+.leagueflow-team-page__section {
+	margin-top: 2rem;
+}
+
+.leagueflow-site-main .leagueflow {
+	max-width: 1100px;
+	margin: 0 auto;
+}
+
+.unbc-page-body:has(.leagueflow-portal) {
+	max-width: none;
+	margin-block-start: 0;
+	padding: 0;
+}
+
+.unbc-page-body:has(.leagueflow-portal) > .wp-block-post-content {
+	max-width: none;
+	width: 100%;
+	margin: 0;
+	padding: 0;
+}
+
+.leagueflow-portal {
+	--leagueflow-border: rgba(15, 58, 45, 0.2);
+	--leagueflow-surface: var(--unbc-cream, #f1e9c8);
+	--leagueflow-surface-soft: var(--unbc-cream-soft, #f8f3df);
+	--leagueflow-text: var(--unbc-green-deep, #0f3a2d);
+	--leagueflow-muted: rgba(20, 36, 28, 0.72);
+	--leagueflow-accent: var(--unbc-gold, #c5a04a);
+	--leagueflow-success: var(--unbc-green, #1f5f3f);
+	--leagueflow-portal-gap: clamp(18px, 2.4vw, 28px);
+	--leagueflow-portal-inner: min(1180px, calc(100vw - 96px));
+	display: grid;
+	gap: var(--leagueflow-portal-gap);
+	width: 100vw;
+	max-width: none;
+	margin: 0 calc(50% - 50vw);
+	padding: clamp(48px, 6vw, 76px) 48px clamp(70px, 8vw, 110px);
+	background:
+		linear-gradient(135deg, rgba(224, 185, 86, 0.12), transparent 34%),
+		repeating-linear-gradient(135deg, rgba(241, 233, 200, 0.04) 0 2px, transparent 2px 14px),
+		var(--unbc-green-deep, #0f3a2d);
+	color: var(--leagueflow-text);
+	font-family: var(--font-sans, inherit);
+}
+
+.wp-block-post-content > .leagueflow-portal,
+.entry-content > .leagueflow-portal,
+.leagueflow-portal.alignfull {
+	width: 100vw !important;
+	max-width: none !important;
+	margin-top: 0 !important;
+	margin-bottom: 0 !important;
+	margin-block-start: 0 !important;
+	margin-block-end: 0 !important;
+	margin-left: calc(50% - 50vw) !important;
+	margin-right: calc(50% - 50vw) !important;
+}
+
+body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.alignfull {
+	width: 100vw !important;
+	max-width: none !important;
+	margin: 0 calc(50% - 50vw) !important;
+	margin-block: 0 !important;
+}
+
+.leagueflow-portal--auth {
+	--leagueflow-portal-inner: min(1120px, calc(100vw - 96px));
+	place-items: center;
+	min-height: 52vh;
+}
+
+.leagueflow-portal--auth .leagueflow-portal__panel--signin {
+	display: grid;
+	grid-template-columns: minmax(0, 0.82fr) minmax(360px, 1fr);
+	gap: clamp(28px, 5vw, 58px);
+	align-items: center;
+	width: var(--leagueflow-portal-inner);
+	max-width: 100%;
+	padding: clamp(32px, 5vw, 54px);
+	border-top: 8px solid var(--leagueflow-accent);
+}
+
+.leagueflow-portal-signin__copy {
+	min-width: 0;
+}
+
+.leagueflow-portal-signin__copy h1 {
+	margin: 10px 0 18px;
+	color: var(--leagueflow-text);
+	font-family: var(--font-display, Impact, sans-serif);
+	font-size: clamp(56px, 8vw, 96px);
+	line-height: 0.9;
+	letter-spacing: 0.01em;
+	text-transform: uppercase;
+}
+
+.leagueflow-portal-signin__copy > p:last-child {
+	max-width: 520px;
+	margin: 0;
+	color: rgba(20, 36, 28, 0.78);
+	font-size: 18px;
+	line-height: 1.55;
+}
+
+.leagueflow-portal-signin__widget {
+	min-width: 0;
+}
+
+.leagueflow-portal-signin__widget noscript {
+	display: block;
+	padding: 16px;
+	background: var(--leagueflow-surface-soft);
+	border: 2px solid rgba(138, 31, 31, 0.24);
+	color: #8a1f1f;
+	font-weight: 700;
+}
+
+.clerk-signin {
+	width: 100%;
+}
+
+.clerk-signin .cl-rootBox,
+.clerk-signin [class*="cl-rootBox"] {
+	width: 100% !important;
+}
+
+.clerk-signin .cl-cardBox,
+.clerk-signin [class*="cl-cardBox"] {
+	width: 100% !important;
+	border: 2px solid rgba(15, 58, 45, 0.22) !important;
+	border-radius: 2px !important;
+	background: var(--leagueflow-surface) !important;
+	box-shadow: 0 18px 36px rgba(5, 24, 18, 0.16) !important;
+}
+
+.clerk-signin .cl-card,
+.clerk-signin [class*="cl-card"] {
+	background: var(--leagueflow-surface) !important;
+	border-radius: 2px !important;
+	box-shadow: none !important;
+}
+
+.clerk-signin .cl-headerTitle,
+.clerk-signin [class*="cl-headerTitle"] {
+	color: var(--leagueflow-text) !important;
+	font-family: var(--font-display, Impact, sans-serif) !important;
+	font-size: clamp(26px, 3vw, 34px) !important;
+	font-weight: 700 !important;
+	line-height: 0.98 !important;
+	text-transform: uppercase !important;
+}
+
+.clerk-signin h1 {
+	font-size: clamp(26px, 3vw, 34px) !important;
+	line-height: 1.05 !important;
+	overflow-wrap: anywhere;
+}
+
+.clerk-signin .cl-headerSubtitle,
+.clerk-signin .cl-dividerText,
+.clerk-signin [class*="cl-headerSubtitle"],
+.clerk-signin [class*="cl-dividerText"] {
+	color: var(--leagueflow-muted) !important;
+}
+
+.clerk-signin .cl-formFieldLabel,
+.clerk-signin [class*="cl-formFieldLabel"] {
+	color: var(--leagueflow-text) !important;
+	font-family: var(--font-condensed, sans-serif) !important;
+	font-size: 13px !important;
+	font-weight: 700 !important;
+	letter-spacing: 0.12em !important;
+	text-transform: uppercase !important;
+}
+
+.clerk-signin .cl-formFieldInput,
+.clerk-signin [class*="cl-formFieldInput"] {
+	border: 2px solid rgba(15, 58, 45, 0.2) !important;
+	border-radius: 2px !important;
+	background: var(--leagueflow-surface-soft) !important;
+	color: var(--leagueflow-text) !important;
+}
+
+.clerk-signin .cl-formButtonPrimary,
+.clerk-signin [class*="cl-formButtonPrimary"] {
+	border: 2px solid var(--leagueflow-accent) !important;
+	border-radius: 2px !important;
+	background: var(--leagueflow-accent) !important;
+	color: var(--leagueflow-text) !important;
+	font-family: var(--font-condensed, sans-serif) !important;
+	font-size: 13px !important;
+	font-weight: 700 !important;
+	letter-spacing: 0.14em !important;
+	text-transform: uppercase !important;
+}
+
+.clerk-signin .cl-formButtonPrimary:hover,
+.clerk-signin .cl-formButtonPrimary:focus,
+.clerk-signin [class*="cl-formButtonPrimary"]:hover,
+.clerk-signin [class*="cl-formButtonPrimary"]:focus {
+	background: var(--leagueflow-text) !important;
+	border-color: var(--leagueflow-text) !important;
+	color: var(--leagueflow-surface) !important;
+}
+
+.clerk-signin .cl-socialButtonsBlockButton,
+.clerk-signin [class*="cl-socialButtonsBlockButton"] {
+	border: 2px solid rgba(15, 58, 45, 0.16) !important;
+	border-radius: 2px !important;
+	background: var(--leagueflow-surface-soft) !important;
+	color: var(--leagueflow-text) !important;
+}
+
+.clerk-signin .cl-footer,
+.clerk-signin [class*="cl-footer"] {
+	background: var(--leagueflow-surface-soft) !important;
+	border-top: 1px solid rgba(15, 58, 45, 0.14) !important;
+}
+
+.clerk-signin .cl-footerActionLink,
+.clerk-signin [class*="cl-footerActionLink"] {
+	color: var(--leagueflow-text) !important;
+	font-weight: 700 !important;
+}
+
+.leagueflow-portal__header,
+.leagueflow-portal__notice,
+.leagueflow-portal__layout {
+	width: var(--leagueflow-portal-inner);
+	max-width: 100%;
+	margin: 0 auto;
+}
+
+.leagueflow-portal__header,
+.leagueflow-portal__panel,
+.leagueflow-portal-team {
+	background: var(--leagueflow-surface);
+	border: 2px solid rgba(15, 58, 45, 0.22);
+	color: var(--leagueflow-text);
+	box-shadow: 0 18px 42px rgba(5, 24, 18, 0.18);
+}
+
+.leagueflow-portal__header {
+	position: relative;
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 24px;
+	padding: clamp(26px, 4vw, 42px);
+	border-top: 8px solid var(--leagueflow-accent);
+}
+
+.leagueflow-portal__header::after {
+	content: "";
+	position: absolute;
+	right: clamp(24px, 4vw, 42px);
+	bottom: -2px;
+	width: min(280px, 28vw);
+	height: 2px;
+	background: var(--leagueflow-accent);
+	opacity: 0.8;
+}
+
+.leagueflow-portal__header h1,
+.leagueflow-portal__panel h2,
+.leagueflow-portal-team h3,
+.leagueflow-portal__subsection h3,
+.leagueflow-portal__subsection h4,
+.leagueflow-portal__form h4 {
+	margin: 0;
+	color: var(--leagueflow-text);
+	font-family: var(--font-display, Impact, sans-serif);
+	line-height: 0.95;
+	text-transform: uppercase;
+}
+
+.leagueflow-portal__header h1 {
+	margin-top: 8px;
+	font-size: clamp(50px, 7vw, 86px);
+	letter-spacing: 0.01em;
+}
+
+.leagueflow-portal__header > div > p:last-child {
+	max-width: 720px;
+	margin: 18px 0 0;
+	color: rgba(20, 36, 28, 0.78);
+	font-size: 18px;
+	line-height: 1.5;
+}
+
+.leagueflow-portal__panel h2 {
+	font-size: clamp(44px, 5vw, 66px);
+}
+
+.leagueflow-portal-team h3 {
+	font-size: clamp(30px, 3.4vw, 44px);
+}
+
+.leagueflow-portal__subsection h3,
+.leagueflow-portal__subsection h4,
+.leagueflow-portal__form h4 {
+	font-size: clamp(26px, 3vw, 36px);
+}
+
+.leagueflow-portal__eyebrow {
+	display: inline-flex;
+	align-items: center;
+	gap: 12px;
+	margin: 0;
+	color: var(--leagueflow-accent);
+	font-family: var(--font-condensed, sans-serif);
+	font-size: 13px;
+	font-weight: 700;
+	letter-spacing: 0.2em;
+	line-height: 1;
+	text-transform: uppercase;
+}
+
+.leagueflow-portal__eyebrow::before {
+	content: "";
+	width: 34px;
+	height: 2px;
+	background: currentColor;
+}
+
+.leagueflow-portal__button,
+.leagueflow-portal__logout,
+.leagueflow-portal__form button,
+.leagueflow-portal-request__actions button,
+.leagueflow-portal-roster__remove button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 48px;
+	border: 2px solid var(--leagueflow-accent);
+	border-radius: 2px;
+	background: var(--leagueflow-accent);
+	color: var(--leagueflow-text);
+	padding: 12px 20px;
+	font-family: var(--font-condensed, sans-serif);
+	font-size: 13px;
+	font-weight: 700;
+	letter-spacing: 0.14em;
+	line-height: 1;
+	text-align: center;
+	text-decoration: none;
+	text-transform: uppercase;
+	cursor: pointer;
+	transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.leagueflow-portal .leagueflow-portal__button,
+.leagueflow-portal .leagueflow-portal__logout {
+	color: var(--leagueflow-text);
+	text-decoration: none;
+}
+
+.leagueflow-portal__button:hover,
+.leagueflow-portal__button:focus,
+.leagueflow-portal__logout:hover,
+.leagueflow-portal__logout:focus,
+.leagueflow-portal__form button:hover,
+.leagueflow-portal__form button:focus,
+.leagueflow-portal-request__actions button:hover,
+.leagueflow-portal-request__actions button:focus,
+.leagueflow-portal-roster__remove button:hover,
+.leagueflow-portal-roster__remove button:focus {
+	border-color: var(--leagueflow-text);
+	background: var(--leagueflow-text);
+	color: var(--leagueflow-surface);
+	text-decoration: none;
+	transform: translateY(-1px);
+}
+
+.leagueflow-portal .leagueflow-portal__button:hover,
+.leagueflow-portal .leagueflow-portal__button:focus,
+.leagueflow-portal .leagueflow-portal__logout:hover,
+.leagueflow-portal .leagueflow-portal__logout:focus {
+	color: var(--leagueflow-surface);
+	text-decoration: none;
+}
+
+.leagueflow-portal__logout,
+.leagueflow-portal-request__actions form + form button,
+.leagueflow-portal-roster__remove button {
+	background: transparent;
+	color: var(--leagueflow-text);
+}
+
+.leagueflow-portal__layout,
+.leagueflow-portal__columns {
+	display: grid;
+	grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.85fr);
+	gap: var(--leagueflow-portal-gap);
+	align-items: start;
+}
+
+.leagueflow-portal__layout .leagueflow-portal__panel:only-child {
+	grid-column: 1 / -1;
+}
+
+.leagueflow-portal__panel--wide {
+	grid-column: 1 / -1;
+}
+
+.leagueflow-portal__panel,
+.leagueflow-portal-team {
+	padding: clamp(24px, 3.5vw, 38px);
+}
+
+.leagueflow-portal__panel-head,
+.leagueflow-portal-team__header,
+.leagueflow-portal-roster__actions {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 24px;
+}
+
+.leagueflow-portal__panel-head,
+.leagueflow-portal-team__header {
+	margin-bottom: 28px;
+	padding-bottom: 20px;
+	border-bottom: 3px solid var(--leagueflow-text);
+}
+
+.leagueflow-portal__identity {
+	flex: 0 0 auto;
+}
+
+.leagueflow-portal__avatar-upload {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	line-height: 0;
+	cursor: pointer;
+}
+
+.leagueflow-portal__avatar-upload .leagueflow-portal__avatar,
+.leagueflow-portal__avatar-upload .leagueflow-portal__avatar-placeholder {
+	width: 96px;
+	height: 96px;
+}
+
+.leagueflow-portal__avatar-upload-icon {
+	position: absolute;
+	right: -4px;
+	bottom: -4px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 36px;
+	height: 36px;
+	border: 2px solid var(--leagueflow-text);
+	border-radius: 50%;
+	background: var(--leagueflow-accent);
+	color: var(--leagueflow-text);
+	box-shadow: 0 6px 16px rgba(15, 58, 45, 0.2);
+	pointer-events: none;
+}
+
+.leagueflow-portal__avatar-upload-icon svg {
+	width: 18px;
+	height: 18px;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 2.2;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.leagueflow-portal__avatar-upload-input {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	opacity: 0;
+	cursor: pointer;
+}
+
+.leagueflow-portal__avatar,
+.leagueflow-portal__team-logo,
+.leagueflow-portal__avatar-placeholder {
+	width: 88px;
+	height: 88px;
+	object-fit: cover;
+}
+
+.leagueflow-portal__avatar,
+.leagueflow-portal__avatar-placeholder {
+	border-radius: 50%;
+}
+
+.leagueflow-portal__team-logo {
+	border-radius: 4px;
+}
+
+.leagueflow-portal__avatar-placeholder {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	background: var(--leagueflow-accent);
+	border: 3px solid rgba(15, 58, 45, 0.24);
+	color: var(--leagueflow-text);
+	font-family: var(--font-display, Impact, sans-serif);
+	font-size: 28px;
+	font-weight: 700;
+}
+
+.leagueflow-portal__summary {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+	gap: 12px;
+	margin: 0 0 28px;
+}
+
+.leagueflow-portal__summary span {
+	display: grid;
+	gap: 6px;
+	min-width: 0;
+	padding: 16px;
+	background: var(--leagueflow-surface-soft);
+	border: 1px solid rgba(15, 58, 45, 0.14);
+}
+
+.leagueflow-portal__summary strong {
+	color: var(--leagueflow-muted);
+	font-family: var(--font-condensed, sans-serif);
+	font-size: 13px;
+	font-weight: 700;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+}
+
+.leagueflow-portal__summary a {
+	color: var(--leagueflow-text);
+	font-weight: 700;
+	text-decoration: underline;
+	text-decoration-thickness: 1px;
+	text-underline-offset: 3px;
+}
+
+.leagueflow-portal__form,
+.leagueflow-portal-roster__item,
+.leagueflow-portal-roster__remove {
+	display: grid;
+	gap: 16px;
+}
+
+.leagueflow-portal__form label,
+.leagueflow-portal-roster__item label {
+	display: grid;
+	gap: 8px;
+	color: var(--leagueflow-text);
+	font-family: var(--font-sans, inherit);
+	font-size: 16px;
+	font-weight: 700;
+}
+
+.leagueflow-portal__form label > span,
+.leagueflow-portal-roster__item label > span {
+	font-family: var(--font-condensed, sans-serif);
+	font-size: 13px;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+}
+
+.leagueflow-portal__form-help {
+	margin: 0;
+	padding: 12px 14px;
+	border-left: 3px solid var(--leagueflow-accent);
+	background: rgba(197, 160, 74, 0.12);
+	color: rgba(20, 36, 28, 0.78);
+	font-size: 15px;
+	font-weight: 600;
+	line-height: 1.45;
+}
+
+.leagueflow-portal__form input[type="text"],
+.leagueflow-portal__form input[type="email"],
+.leagueflow-portal__form input[type="number"],
+.leagueflow-portal__form select,
+.leagueflow-portal__form textarea,
+.leagueflow-portal-roster__item input[type="text"],
+.leagueflow-portal-roster__item input[type="email"],
+.leagueflow-portal-roster__item input[type="number"] {
+	width: 100%;
+	box-sizing: border-box;
+	border: 2px solid rgba(15, 58, 45, 0.2);
+	border-radius: 2px;
+	background: var(--leagueflow-surface-soft);
+	color: var(--leagueflow-text);
+	padding: 12px 14px;
+	font: inherit;
+}
+
+.leagueflow-portal__form select:disabled {
+	cursor: not-allowed;
+	opacity: 0.58;
+}
+
+.leagueflow-portal__form textarea {
+	min-height: 170px;
+	resize: vertical;
+}
+
+.leagueflow-portal__form--join-request textarea {
+	min-height: 110px;
+}
+
+.leagueflow-portal__form input[type="file"] {
+	width: 100%;
+	max-width: 100%;
+	color: var(--leagueflow-text);
+}
+
+.leagueflow-portal__form input[type="file"]::file-selector-button {
+	margin-right: 12px;
+	border: 2px solid var(--leagueflow-text);
+	border-radius: 2px;
+	background: transparent;
+	color: var(--leagueflow-text);
+	padding: 9px 12px;
+	font-family: var(--font-condensed, sans-serif);
+	font-weight: 700;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+}
+
+.leagueflow-portal__checkbox {
+	display: flex !important;
+	grid-template-columns: none !important;
+	align-items: center;
+	gap: 10px !important;
+}
+
+.leagueflow-portal__sport-preferences {
+	display: grid;
+	gap: 14px;
+	margin: 0;
+	border: 2px solid rgba(15, 58, 45, 0.16);
+	background: rgba(255, 255, 255, 0.34);
+	padding: 18px;
+}
+
+.leagueflow-portal__sport-preferences legend {
+	padding: 0 8px;
+	color: var(--leagueflow-text);
+	font-family: var(--font-condensed, sans-serif);
+	font-size: 13px;
+	font-weight: 700;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+}
+
+.leagueflow-portal__sport-preference-list {
+	display: grid;
+	gap: 10px;
+}
+
+.leagueflow-portal__sport-preference-row {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(160px, 220px);
+	gap: 12px;
+	align-items: center;
+	border: 1px solid rgba(15, 58, 45, 0.12);
+	background: var(--leagueflow-surface-soft);
+	padding: 12px;
+}
+
+.leagueflow-portal__sport-preference-row.is-selected {
+	border-color: rgba(15, 58, 45, 0.3);
+	box-shadow: inset 4px 0 0 var(--leagueflow-accent);
+}
+
+.leagueflow-portal__sport-choice {
+	display: flex !important;
+	grid-template-columns: none !important;
+	align-items: center;
+	gap: 10px !important;
+	min-width: 0;
+}
+
+.leagueflow-portal__sport-choice input {
+	flex: 0 0 auto;
+}
+
+.leagueflow-portal__form .leagueflow-portal__sport-choice > span {
+	font-family: var(--font-sans, inherit);
+	font-size: 16px;
+	letter-spacing: 0;
+	text-transform: none;
+	overflow-wrap: anywhere;
+}
+
+.leagueflow-portal__sport-level {
+	display: grid;
+	gap: 6px;
+}
+
+.leagueflow-portal__sport-level span {
+	color: var(--leagueflow-muted);
+	font-family: var(--font-condensed, sans-serif);
+	font-size: 12px;
+	font-weight: 700;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+}
+
+.leagueflow-portal__form-grid {
+	display: grid;
+	grid-template-columns: 110px minmax(0, 1fr);
+	gap: 12px;
+}
+
+.leagueflow-portal__form-grid--even {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.leagueflow-portal__teams,
+.leagueflow-portal__subsection,
+.leagueflow-portal-roster,
+.leagueflow-portal-requests {
+	display: grid;
+	gap: 16px;
+}
+
+.leagueflow-portal__subsection {
+	margin-top: 32px;
+	padding-top: 26px;
+	border-top: 3px solid rgba(15, 58, 45, 0.18);
+}
+
+.leagueflow-portal-roster {
+	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.leagueflow-portal-roster__card {
+	border: 2px solid rgba(15, 58, 45, 0.16);
+	background: var(--leagueflow-surface-soft);
+	padding: 18px;
+}
+
+.leagueflow-portal-roster__remove {
+	border-top: 1px solid rgba(15, 58, 45, 0.16);
+	margin-top: 2px;
+	padding-top: 14px;
+}
+
+.leagueflow-portal-request {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: 18px;
+	align-items: center;
+	border: 2px solid rgba(15, 58, 45, 0.16);
+	background: var(--leagueflow-surface-soft);
+	padding: 18px;
+}
+
+.leagueflow-portal-request strong,
+.leagueflow-portal-request span {
+	display: block;
+}
+
+.leagueflow-portal-request strong {
+	color: var(--leagueflow-text);
+	font-family: var(--font-display, Impact, sans-serif);
+	font-size: clamp(22px, 2.4vw, 30px);
+	line-height: 1;
+	text-transform: uppercase;
+}
+
+.leagueflow-portal-request span {
+	margin-top: 6px;
+	color: var(--leagueflow-muted);
+	font-family: var(--font-condensed, sans-serif);
+	font-size: 13px;
+	font-weight: 700;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+}
+
+.leagueflow-portal-request p {
+	margin: 12px 0 0;
+	color: var(--leagueflow-text);
+}
+
+.leagueflow-portal-request__actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	justify-content: flex-end;
+}
+
+.leagueflow-portal-matches {
+	gap: 14px;
+}
+
+.leagueflow-portal-matches .leagueflow-match-row {
+	background: var(--leagueflow-surface-soft);
+	border: 1px solid rgba(15, 58, 45, 0.16);
+	border-left: 8px solid var(--leagueflow-accent);
+	color: var(--leagueflow-text);
+	padding: 18px 20px;
+	box-shadow: none;
+}
+
+.leagueflow-portal-matches .leagueflow-match-row__header {
+	color: var(--leagueflow-muted);
+	font-family: var(--font-condensed, sans-serif);
+	font-size: 13px;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+}
+
+.leagueflow-portal-matches .leagueflow-match-row__header strong {
+	color: var(--leagueflow-text);
+}
+
+.leagueflow-portal-matches .leagueflow-match-row__teams {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) 64px minmax(0, 1fr);
+	gap: 14px;
+	color: var(--leagueflow-text);
+	font-family: var(--font-display, Impact, sans-serif);
+	font-size: clamp(22px, 2.5vw, 32px);
+	line-height: 1;
+	text-transform: uppercase;
+}
+
+.leagueflow-portal-matches .leagueflow-match-row__teams > span:first-child {
+	text-align: left;
+}
+
+.leagueflow-portal-matches .leagueflow-match-row__teams > span:last-child {
+	text-align: right;
+}
+
+.leagueflow-portal-matches .leagueflow-match-row__score {
+	min-width: 64px;
+	color: var(--leagueflow-accent);
+	text-align: center;
+}
+
+.leagueflow-portal-matches .leagueflow-match-row__venue {
+	margin: 12px 0 0;
+	color: var(--leagueflow-muted);
+	font-size: 15px;
+}
+
+.leagueflow-portal__notice {
+	padding: 14px 18px;
+	border: 2px solid rgba(15, 58, 45, 0.22);
+	background: var(--leagueflow-surface);
+	color: var(--leagueflow-text);
+	font-family: var(--font-condensed, sans-serif);
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.leagueflow-portal__notice--success {
+	border-color: rgba(31, 95, 63, 0.36);
+	background: var(--leagueflow-surface);
+	color: var(--leagueflow-success);
+}
+
+.leagueflow-portal__notice--error {
+	border-color: rgba(138, 31, 31, 0.36);
+	background: var(--leagueflow-surface);
+	color: #8a1f1f;
+}
+
+@media (max-width: 782px) {
+	.leagueflow-table,
+	.leagueflow-roster-table {
+		display: block;
+		overflow-x: auto;
+	}
+
+	.leagueflow-team-card,
+	.leagueflow-team-header,
+	.leagueflow-match-card__teams {
+		display: block;
+	}
+
+	.leagueflow-match-card__team,
+	.leagueflow-match-row__teams {
+		margin-bottom: 0.75rem;
+	}
+
+	.leagueflow-portal__header,
+	.leagueflow-portal__panel-head,
+	.leagueflow-portal-team__header,
+	.leagueflow-portal-roster__actions {
+		display: block;
+	}
+
+	.leagueflow-portal__layout,
+	.leagueflow-portal__columns,
+	.leagueflow-portal__form-grid,
+	.leagueflow-portal__sport-preference-row,
+	.leagueflow-portal-request {
+		grid-template-columns: 1fr;
+	}
+
+	.leagueflow-portal {
+		--leagueflow-portal-inner: min(100%, calc(100vw - 32px));
+		padding: 34px 16px 64px;
+	}
+
+	.leagueflow-portal--auth .leagueflow-portal__panel--signin {
+		grid-template-columns: 1fr;
+		gap: 24px;
+		padding: 24px;
+	}
+
+	.leagueflow-portal-signin__copy h1 {
+		font-size: clamp(46px, 14vw, 64px);
+	}
+
+	.leagueflow-portal-signin__copy > p:last-child {
+		font-size: 16px;
+	}
+
+	.leagueflow-portal__header,
+	.leagueflow-portal__panel,
+	.leagueflow-portal-team {
+		padding: 22px;
+	}
+
+	.leagueflow-portal__header::after {
+		display: none;
+	}
+
+	.leagueflow-portal__header h1 {
+		font-size: clamp(42px, 14vw, 58px);
+	}
+
+	.leagueflow-portal__header > div > p:last-child {
+		font-size: 16px;
+	}
+
+	.leagueflow-portal__logout {
+		margin-top: 22px;
+		width: 100%;
+	}
+
+	.leagueflow-portal__panel h2 {
+		font-size: clamp(38px, 13vw, 52px);
+	}
+
+	.leagueflow-portal__identity {
+		margin-top: 18px;
+	}
+
+	.leagueflow-portal__avatar,
+	.leagueflow-portal__team-logo,
+	.leagueflow-portal__avatar-placeholder {
+		width: 72px;
+		height: 72px;
+	}
+
+	.leagueflow-portal-matches .leagueflow-match-row__teams {
+		grid-template-columns: 1fr;
+		gap: 8px;
+		font-size: 28px;
+	}
+
+	.leagueflow-portal-matches .leagueflow-match-row__teams > span,
+	.leagueflow-portal-matches .leagueflow-match-row__teams > span:first-child,
+	.leagueflow-portal-matches .leagueflow-match-row__teams > span:last-child {
+		text-align: left;
+	}
+
+	.leagueflow-portal-matches .leagueflow-match-row__score {
+		justify-self: start;
+		min-width: 0;
+	}
+}
+
+@media (max-width: 520px) {
+	.leagueflow-portal__summary,
+	.leagueflow-portal-roster {
+		grid-template-columns: 1fr;
+	}
+
+	.leagueflow-portal__button,
+	.leagueflow-portal__form button,
+	.leagueflow-portal-roster__remove button {
+		width: 100%;
+	}
+}
+
+/* Schedule calendar */
+
+.leagueflow-calendar {
+	--lf-cal-panel: #fff;
+	--lf-cal-muted-bg: #f6f7f7;
+	--lf-cal-shadow: 0 14px 30px rgba(15, 35, 28, 0.08);
+	display: grid;
+	gap: 1rem;
+}
+
+.leagueflow-calendar__toolbar,
+.leagueflow-calendar__filters,
+.leagueflow-calendar__chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.6rem;
+	align-items: center;
+}
+
+.leagueflow-calendar__toolbar {
+	justify-content: space-between;
+}
+
+.leagueflow-calendar__filters {
+	align-items: flex-start;
+}
+
+.leagueflow-calendar__view-tabs {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25rem;
+	padding: 0.25rem;
+	border: 1px solid var(--leagueflow-border);
+	border-radius: 8px;
+	background: var(--leagueflow-surface);
+}
+
+.leagueflow-calendar__view,
+.leagueflow-calendar__nav-btn,
+.leagueflow-calendar__chip,
+.leagueflow-calendar__load-more,
+.leagueflow-calendar__event,
+.leagueflow-calendar__time-event {
+	font: inherit;
+	cursor: pointer;
+}
+
+.leagueflow-calendar__view {
+	padding: 0.45rem 0.75rem;
+	border: 0;
+	border-radius: 6px;
+	background: transparent;
+	color: var(--leagueflow-muted);
+	font-size: 0.9rem;
+	line-height: 1;
+}
+
+.leagueflow-calendar__view.is-active {
+	background: var(--leagueflow-accent);
+	color: #fff;
+}
+
+.leagueflow-calendar__search {
+	flex: 1 1 240px;
+	max-width: 340px;
+}
+
+.leagueflow-calendar__search input {
+	width: 100%;
+	min-height: 2.35rem;
+	padding: 0.45rem 0.75rem;
+	border: 1px solid var(--leagueflow-border);
+	border-radius: 8px;
+	background: var(--leagueflow-surface);
+	color: var(--leagueflow-text);
+	font: inherit;
+}
+
+.leagueflow-calendar__chips {
+	margin: 0;
+}
+
+.leagueflow-calendar__chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.45rem;
+	min-height: 2.25rem;
+	padding: 0.4rem 0.8rem;
+	border: 1px solid var(--leagueflow-border);
+	border-radius: 999px;
+	background: var(--leagueflow-surface);
+	color: var(--leagueflow-text);
+	font-size: 0.88rem;
+	transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.leagueflow-calendar__chip:hover {
+	border-color: var(--lf-cal-accent, var(--leagueflow-accent));
+}
+
+.leagueflow-calendar__chip.is-active {
+	background: var(--lf-cal-accent, var(--leagueflow-accent));
+	border-color: var(--lf-cal-accent, var(--leagueflow-accent));
+	color: #fff;
+}
+
+.leagueflow-calendar__chips--types .leagueflow-calendar__chip.is-active {
+	--lf-cal-accent: var(--leagueflow-text);
+}
+
+.leagueflow-calendar__chip-dot {
+	width: 0.58rem;
+	height: 0.58rem;
+	border-radius: 50%;
+	background: var(--lf-cal-accent, currentColor);
+	flex: none;
+}
+
+.leagueflow-calendar__chip.is-active .leagueflow-calendar__chip-dot {
+	background: #fff;
+}
+
+.leagueflow-calendar__chip-count {
+	font-size: 0.76rem;
+	opacity: 0.72;
+}
+
+.leagueflow-calendar__layout {
+	display: grid;
+	grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.75fr);
+	gap: 1rem;
+	align-items: start;
+}
+
+.leagueflow-calendar__board,
+.leagueflow-calendar__panel {
+	background: var(--lf-cal-panel);
+	border: 1px solid var(--leagueflow-border);
+	border-radius: 8px;
+	box-shadow: var(--lf-cal-shadow);
+}
+
+.leagueflow-calendar__board {
+	min-width: 0;
+	padding: 1rem;
+	overflow: hidden;
+}
+
+.leagueflow-calendar__panel {
+	position: sticky;
+	top: 1rem;
+	max-height: calc(100vh - 2rem);
+	overflow-y: auto;
+	padding: 1rem;
+}
+
+.leagueflow-calendar__header,
+.leagueflow-calendar__panel-head,
+.leagueflow-calendar__list-date {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem;
+}
+
+.leagueflow-calendar__header {
+	margin-bottom: 1rem;
+}
+
+.leagueflow-calendar__month,
+.leagueflow-calendar__panel-title {
+	margin: 0;
+	color: var(--leagueflow-text);
+}
+
+.leagueflow-calendar__month {
+	font-size: 1.25rem;
+	line-height: 1.2;
+}
+
+.leagueflow-calendar__panel-title {
+	font-size: 1rem;
+}
+
+.leagueflow-calendar__nav {
+	display: flex;
+	gap: 0.35rem;
+}
+
+.leagueflow-calendar__nav-btn {
+	min-width: 2.35rem;
+	min-height: 2.25rem;
+	padding: 0.35rem 0.65rem;
+	border: 1px solid var(--leagueflow-border);
+	border-radius: 8px;
+	background: var(--leagueflow-surface);
+	color: var(--leagueflow-text);
+	font-size: 0.88rem;
+	line-height: 1;
+}
+
+.leagueflow-calendar__nav-btn:hover {
+	border-color: var(--leagueflow-accent);
+	color: var(--leagueflow-accent);
+}
+
+.leagueflow-calendar__panel-clear {
+	border: 0;
+	background: none;
+	padding: 0;
+	color: var(--leagueflow-accent);
+	font: inherit;
+	font-size: 0.82rem;
+	cursor: pointer;
+	text-decoration: underline;
+	white-space: nowrap;
+}
+
+.leagueflow-calendar__stage {
+	min-width: 0;
+}
+
+.leagueflow-calendar__weekdays,
+.leagueflow-calendar__grid {
+	display: grid;
+	grid-template-columns: repeat(7, minmax(0, 1fr));
+	gap: 0.35rem;
+}
+
+.leagueflow-calendar__weekdays {
+	margin-bottom: 0.35rem;
+}
+
+.leagueflow-calendar__weekday {
+	padding: 0.3rem 0;
+	color: var(--leagueflow-muted);
+	font-size: 0.72rem;
+	font-weight: 700;
+	text-align: left;
+	text-transform: uppercase;
+}
+
+.leagueflow-calendar__day {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	min-height: 7.8rem;
+	padding: 0.55rem;
+	border: 1px solid var(--leagueflow-border);
+	border-radius: 8px;
+	background: var(--leagueflow-surface);
+	color: var(--leagueflow-text);
+	text-align: left;
+	transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.leagueflow-calendar__day.is-outside {
+	background: transparent;
+	color: var(--leagueflow-muted);
+	opacity: 0.45;
+}
+
+.leagueflow-calendar__day.has-games:hover,
+.leagueflow-calendar__day.is-selected {
+	border-color: var(--leagueflow-accent);
+	box-shadow: inset 0 0 0 1px var(--leagueflow-accent);
+}
+
+.leagueflow-calendar__day.is-today .leagueflow-calendar__day-num {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.6rem;
+	height: 1.6rem;
+	border-radius: 50%;
+	background: var(--leagueflow-accent);
+	color: #fff;
+}
+
+.leagueflow-calendar__day-summary {
+	display: grid;
+	gap: 0.25rem;
+	margin-top: 0.55rem;
+	min-width: 0;
+}
+
+.leagueflow-calendar__day-event {
+	display: block;
+	overflow: hidden;
+	padding: 0.22rem 0.35rem;
+	border-left: 3px solid var(--lf-cal-accent, var(--leagueflow-accent));
+	border-radius: 4px;
+	background: rgba(10, 75, 120, 0.07);
+	color: var(--leagueflow-text);
+	font-size: 0.72rem;
+	line-height: 1.25;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.leagueflow-calendar__day-more {
+	color: var(--leagueflow-muted);
+	font-size: 0.72rem;
+}
+
+.leagueflow-calendar__day-heading {
+	margin: 1rem 0 0.5rem;
+	color: var(--leagueflow-muted);
+	font-size: 0.78rem;
+	font-weight: 700;
+	text-transform: uppercase;
+}
+
+.leagueflow-calendar__day-heading:first-child {
+	margin-top: 0;
+}
+
+.leagueflow-calendar__event {
+	display: block;
+	width: 100%;
+	margin: 0 0 0.6rem;
+	padding: 0.72rem 0.85rem;
+	border: 1px solid var(--leagueflow-border);
+	border-left: 4px solid var(--lf-cal-accent, var(--leagueflow-accent));
+	border-radius: 8px;
+	background: var(--leagueflow-surface);
+	color: var(--leagueflow-text);
+	text-align: left;
+}
+
+.leagueflow-calendar__event:hover {
+	border-color: var(--lf-cal-accent, var(--leagueflow-accent));
+}
+
+.leagueflow-calendar__event:last-child {
+	margin-bottom: 0;
+}
+
+.leagueflow-calendar__event--compact {
+	padding-block: 0.55rem;
+}
+
+.leagueflow-calendar__event-top {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.45rem 0.6rem;
+	margin-bottom: 0.35rem;
+	color: var(--leagueflow-muted);
+	font-size: 0.76rem;
+}
+
+.leagueflow-calendar__event-sport,
+.leagueflow-calendar__event-type {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	font-weight: 700;
+	text-transform: uppercase;
+}
+
+.leagueflow-calendar__event-dot {
+	width: 0.5rem;
+	height: 0.5rem;
+	border-radius: 50%;
+	background: var(--lf-cal-accent, currentColor);
+}
+
+.leagueflow-calendar__event-status,
+.leagueflow-calendar__event-requires-registration {
+	display: inline-flex;
+	width: fit-content;
+	margin-top: 0.45rem;
+	padding: 0.12rem 0.5rem;
+	border-radius: 999px;
+	background: var(--leagueflow-border);
+	color: var(--leagueflow-text);
+	font-size: 0.72rem;
+	font-weight: 700;
+	text-transform: uppercase;
+}
+
+.leagueflow-calendar__event-status.is-finished {
+	background: var(--leagueflow-success);
+	color: #fff;
+}
+
+.leagueflow-calendar__event-status.is-cancelled,
+.leagueflow-calendar__event-status.is-postponed {
+	background: #8a3b3b;
+	color: #fff;
+}
+
+.leagueflow-calendar__event-teams {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+	align-items: center;
+	gap: 0.55rem;
+	margin: 0;
+	font-weight: 700;
+}
+
+.leagueflow-calendar__event-teams span {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.leagueflow-calendar__event-teams span:last-child {
+	text-align: right;
+}
+
+.leagueflow-calendar__event-score {
+	color: var(--leagueflow-muted);
+	font-size: 0.86rem;
+	white-space: nowrap;
+}
+
+.leagueflow-calendar__event-title {
+	margin: 0;
+	font-weight: 700;
+}
+
+.leagueflow-calendar__event-meta {
+	margin: 0.35rem 0 0;
+	color: var(--leagueflow-muted);
+	font-size: 0.82rem;
+}
+
+.leagueflow-calendar__list-view {
+	display: grid;
+	gap: 1rem;
+}
+
+.leagueflow-calendar__list-group {
+	display: grid;
+	gap: 0.55rem;
+}
+
+.leagueflow-calendar__list-date {
+	padding-bottom: 0.35rem;
+	border-bottom: 1px solid var(--leagueflow-border);
+}
+
+.leagueflow-calendar__list-date h4 {
+	margin: 0;
+	font-size: 0.98rem;
+}
+
+.leagueflow-calendar__list-date span {
+	color: var(--leagueflow-muted);
+	font-size: 0.8rem;
+}
+
+.leagueflow-calendar__load-more {
+	justify-self: center;
+	padding: 0.55rem 0.95rem;
+	border: 1px solid var(--leagueflow-border);
+	border-radius: 8px;
+	background: var(--leagueflow-text);
+	color: #fff;
+}
+
+.leagueflow-calendar__week-view,
+.leagueflow-calendar__day-view {
+	min-width: 680px;
+}
+
+.leagueflow-calendar__week-view {
+	overflow-x: auto;
+}
+
+.leagueflow-calendar__week-head,
+.leagueflow-calendar__week-grid {
+	display: grid;
+	grid-template-columns: 4.5rem repeat(7, minmax(5.8rem, 1fr));
+}
+
+.leagueflow-calendar__week-head {
+	border: 1px solid var(--leagueflow-border);
+	border-bottom: 0;
+	border-radius: 8px 8px 0 0;
+	background: var(--lf-cal-muted-bg);
+}
+
+.leagueflow-calendar__week-day-head,
+.leagueflow-calendar__time-head {
+	min-height: 3.2rem;
+	padding: 0.65rem;
+	border-left: 1px solid var(--leagueflow-border);
+}
+
+.leagueflow-calendar__time-head {
+	border-left: 0;
+}
+
+.leagueflow-calendar__week-day-head span,
+.leagueflow-calendar__week-day-head strong {
+	display: block;
+}
+
+.leagueflow-calendar__week-day-head span {
+	color: var(--leagueflow-muted);
+	font-size: 0.75rem;
+	text-transform: uppercase;
+}
+
+.leagueflow-calendar__week-day-head.is-today strong {
+	color: var(--leagueflow-accent);
+}
+
+.leagueflow-calendar__week-grid {
+	border: 1px solid var(--leagueflow-border);
+	border-radius: 0 0 8px 8px;
+	overflow: hidden;
+}
+
+.leagueflow-calendar__day-view {
+	display: grid;
+	grid-template-columns: 4.5rem minmax(0, 1fr);
+	border: 1px solid var(--leagueflow-border);
+	border-radius: 8px;
+	overflow: hidden;
+}
+
+.leagueflow-calendar__time-col {
+	background: var(--lf-cal-muted-bg);
+}
+
+.leagueflow-calendar__time-slot,
+.leagueflow-calendar__hour-line {
+	height: 72px;
+	border-bottom: 1px solid var(--leagueflow-border);
+}
+
+.leagueflow-calendar__time-slot {
+	padding: 0.45rem;
+	color: var(--leagueflow-muted);
+	font-size: 0.72rem;
+}
+
+.leagueflow-calendar__week-col,
+.leagueflow-calendar__day-col {
+	position: relative;
+	min-height: 100%;
+	border-left: 1px solid var(--leagueflow-border);
+	background: var(--leagueflow-surface);
+}
+
+.leagueflow-calendar__time-event {
+	position: absolute;
+	left: 0.25rem;
+	right: 0.25rem;
+	z-index: 1;
+	overflow: hidden;
+	padding: 0.45rem 0.5rem;
+	border: 1px solid var(--lf-cal-accent, var(--leagueflow-accent));
+	border-left-width: 4px;
+	border-radius: 6px;
+	background: #fff;
+	color: var(--leagueflow-text);
+	text-align: left;
+	box-shadow: 0 6px 14px rgba(15, 35, 28, 0.08);
+}
+
+.leagueflow-calendar__time-event strong,
+.leagueflow-calendar__time-event span {
+	display: block;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.leagueflow-calendar__time-event strong {
+	font-size: 0.8rem;
+}
+
+.leagueflow-calendar__time-event span {
+	color: var(--leagueflow-muted);
+	font-size: 0.72rem;
+}
+
+.leagueflow-calendar__empty {
+	margin: 0 0 0.6rem;
+	color: var(--leagueflow-muted);
+}
+
+.leagueflow-calendar__empty--large,
+.leagueflow-calendar__empty--time {
+	padding: 1rem;
+	border: 1px dashed var(--leagueflow-border);
+	border-radius: 8px;
+	background: var(--lf-cal-muted-bg);
+}
+
+.leagueflow-calendar__empty--time {
+	position: absolute;
+	inset: 1rem;
+	height: fit-content;
+}
+
+.leagueflow-calendar__dialog[hidden] {
+	display: none;
+}
+
+.leagueflow-calendar__dialog {
+	position: fixed;
+	inset: 0;
+	z-index: 9999;
+	display: grid;
+	place-items: center;
+	padding: 1rem;
+}
+
+.leagueflow-calendar__dialog-backdrop {
+	position: absolute;
+	inset: 0;
+	background: rgba(15, 35, 28, 0.58);
+}
+
+.leagueflow-calendar__dialog-card {
+	position: relative;
+	z-index: 1;
+	width: min(620px, 100%);
+	max-height: min(760px, calc(100vh - 2rem));
+	overflow-y: auto;
+	padding: 1.25rem;
+	border-radius: 8px;
+	background: #fff;
+	color: var(--leagueflow-text);
+	box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+}
+
+.leagueflow-calendar__dialog-close {
+	position: absolute;
+	top: 0.7rem;
+	right: 0.7rem;
+	width: 2rem;
+	height: 2rem;
+	border: 1px solid var(--leagueflow-border);
+	border-radius: 50%;
+	background: #fff;
+	color: var(--leagueflow-text);
+	font-size: 1.25rem;
+	line-height: 1;
+	cursor: pointer;
+}
+
+.leagueflow-calendar__dialog-title {
+	margin: 0 2.5rem 0.75rem 0;
+	font-size: 1.35rem;
+	line-height: 1.2;
+}
+
+.leagueflow-calendar__dialog-badges,
+.leagueflow-calendar__dialog-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+}
+
+.leagueflow-calendar__dialog-badge {
+	padding: 0.18rem 0.55rem;
+	border-radius: 999px;
+	background: var(--lf-cal-accent, var(--leagueflow-accent));
+	color: #fff;
+	font-size: 0.75rem;
+	font-weight: 700;
+}
+
+.leagueflow-calendar__dialog-badge.is-cancelled,
+.leagueflow-calendar__dialog-badge.is-postponed {
+	background: #8a3b3b;
+}
+
+.leagueflow-calendar__dialog-details {
+	display: grid;
+	grid-template-columns: max-content minmax(0, 1fr);
+	gap: 0.45rem 0.9rem;
+	margin: 1rem 0;
+}
+
+.leagueflow-calendar__dialog-details dt {
+	color: var(--leagueflow-muted);
+	font-weight: 700;
+}
+
+.leagueflow-calendar__dialog-details dd {
+	margin: 0;
+}
+
+.leagueflow-calendar__dialog-description {
+	margin: 1rem 0;
+	line-height: 1.55;
+}
+
+.leagueflow-calendar__dialog-actions {
+	margin-top: 1rem;
+}
+
+.leagueflow-calendar__dialog-action {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 2.35rem;
+	padding: 0.45rem 0.75rem;
+	border: 1px solid var(--leagueflow-border);
+	border-radius: 8px;
+	background: var(--leagueflow-surface);
+	color: var(--leagueflow-text);
+	font-size: 0.9rem;
+	text-decoration: none;
+}
+
+.leagueflow-calendar__dialog-action:hover,
+.leagueflow-calendar__dialog-action:focus {
+	border-color: var(--leagueflow-accent);
+	color: var(--leagueflow-accent);
+	text-decoration: none;
+}
+
+.leagueflow-calendar-dialog-open {
+	overflow: hidden;
+}
+
+@media (max-width: 1020px) {
+	.leagueflow-calendar__layout {
+		grid-template-columns: 1fr;
+	}
+
+	.leagueflow-calendar__panel {
+		position: static;
+		max-height: none;
+	}
+}
+
+@media (max-width: 760px) {
+	.leagueflow-calendar {
+		gap: 0.75rem;
+	}
+
+	.leagueflow-calendar__toolbar {
+		align-items: stretch;
+		position: sticky;
+		top: 0;
+		z-index: 10;
+		margin: 0 -0.5rem;
+		padding: 0.5rem;
+		border: 1px solid var(--leagueflow-border);
+		border-radius: 8px;
+		background: color-mix(in srgb, var(--leagueflow-surface) 94%, transparent);
+		backdrop-filter: blur(12px);
+	}
+
+	.leagueflow-calendar__view-tabs,
+	.leagueflow-calendar__search {
+		width: 100%;
+		max-width: none;
+	}
+
+	.leagueflow-calendar__view {
+		flex: 1;
+		min-width: 0;
+		padding-inline: 0.45rem;
+		font-size: 0.82rem;
+	}
+
+	.leagueflow-calendar__view[data-calendar-view="week"] {
+		display: none;
+	}
+
+	.leagueflow-calendar__filters {
+		margin-inline: -0.5rem;
+		overflow: hidden;
+	}
+
+	.leagueflow-calendar__chips {
+		flex-wrap: nowrap;
+		width: 100%;
+		overflow-x: auto;
+		padding: 0 0.5rem 0.15rem;
+		scrollbar-width: none;
+	}
+
+	.leagueflow-calendar__chips::-webkit-scrollbar {
+		display: none;
+	}
+
+	.leagueflow-calendar__chip {
+		flex: 0 0 auto;
+		min-height: 2.05rem;
+		padding: 0.35rem 0.65rem;
+		font-size: 0.8rem;
+	}
+
+	.leagueflow-calendar__board,
+	.leagueflow-calendar__panel {
+		padding: 0.75rem;
+		box-shadow: none;
+	}
+
+	.leagueflow-calendar__header {
+		align-items: center;
+		flex-direction: row;
+		margin-bottom: 0.75rem;
+	}
+
+	.leagueflow-calendar__month {
+		font-size: 1.05rem;
+	}
+
+	.leagueflow-calendar__nav {
+		gap: 0.25rem;
+	}
+
+	.leagueflow-calendar__nav-btn {
+		min-width: 2.05rem;
+		min-height: 2rem;
+		padding: 0.3rem 0.48rem;
+		font-size: 0.78rem;
+	}
+
+	.leagueflow-calendar__weekdays {
+		display: grid;
+		grid-template-columns: repeat(7, minmax(0, 1fr));
+		gap: 0.25rem;
+		margin-bottom: 0.25rem;
+	}
+
+	.leagueflow-calendar__weekday {
+		padding: 0.15rem 0;
+		font-size: 0.62rem;
+		text-align: center;
+	}
+
+	.leagueflow-calendar__grid {
+		grid-template-columns: repeat(7, minmax(0, 1fr));
+		gap: 0.25rem;
+	}
+
+	.leagueflow-calendar__day {
+		aspect-ratio: 1;
+		align-items: center;
+		justify-content: flex-start;
+		min-height: 0;
+		padding: 0.28rem;
+		border-radius: 6px;
+		text-align: center;
+	}
+
+	.leagueflow-calendar__day.is-outside {
+		display: flex;
+		background: var(--lf-cal-muted-bg);
+		opacity: 0.38;
+	}
+
+	.leagueflow-calendar__day-num {
+		font-size: 0.82rem;
+		font-weight: 700;
+		line-height: 1;
+	}
+
+	.leagueflow-calendar__day.is-today .leagueflow-calendar__day-num {
+		width: 1.35rem;
+		height: 1.35rem;
+		font-size: 0.78rem;
+	}
+
+	.leagueflow-calendar__day.has-games {
+		border-color: color-mix(in srgb, var(--leagueflow-accent) 35%, var(--leagueflow-border));
+	}
+
+	.leagueflow-calendar__day-summary {
+		position: absolute;
+		right: 0.18rem;
+		bottom: 0.24rem;
+		left: 0.18rem;
+		display: flex;
+		justify-content: center;
+		gap: 0.12rem;
+		margin-top: 0;
+	}
+
+	.leagueflow-calendar__day-event {
+		width: 0.34rem;
+		height: 0.34rem;
+		padding: 0;
+		border: 0;
+		border-radius: 999px;
+		background: var(--lf-cal-accent, var(--leagueflow-accent));
+		font-size: 0;
+		line-height: 0;
+	}
+
+	.leagueflow-calendar__day-more {
+		align-self: center;
+		color: var(--leagueflow-muted);
+		font-size: 0.56rem;
+		font-weight: 700;
+		line-height: 1;
+	}
+
+	.leagueflow-calendar__panel {
+		border-left: 4px solid var(--leagueflow-accent);
+	}
+
+	.leagueflow-calendar__panel-title {
+		font-size: 0.92rem;
+		line-height: 1.25;
+	}
+
+	.leagueflow-calendar__panel-clear {
+		font-size: 0.76rem;
+	}
+
+	.leagueflow-calendar.is-view-list .leagueflow-calendar__panel {
+		display: none;
+	}
+
+	.leagueflow-calendar__event {
+		margin-bottom: 0.5rem;
+		padding: 0.72rem;
+	}
+
+	.leagueflow-calendar__event-top {
+		gap: 0.35rem 0.5rem;
+		font-size: 0.7rem;
+	}
+
+	.leagueflow-calendar__event-teams {
+		grid-template-columns: minmax(0, 1fr);
+		gap: 0.2rem;
+		font-size: 0.94rem;
+	}
+
+	.leagueflow-calendar__event-teams span:last-child {
+		text-align: left;
+	}
+
+	.leagueflow-calendar__event-score {
+		width: fit-content;
+		padding: 0.08rem 0.45rem;
+		border-radius: 999px;
+		background: var(--lf-cal-muted-bg);
+		font-size: 0.72rem;
+	}
+
+	.leagueflow-calendar__list-view {
+		gap: 0.85rem;
+	}
+
+	.leagueflow-calendar__list-group {
+		gap: 0.5rem;
+	}
+
+	.leagueflow-calendar__list-date h4 {
+		font-size: 0.9rem;
+		line-height: 1.2;
+	}
+
+	.leagueflow-calendar__list-date span {
+		font-size: 0.72rem;
+	}
+
+	.leagueflow-calendar__week-view,
+	.leagueflow-calendar__day-view {
+		min-width: 0;
+	}
+
+	.leagueflow-calendar__week-view {
+		min-width: 620px;
+	}
+
+	.leagueflow-calendar__day-view {
+		grid-template-columns: 3.65rem minmax(0, 1fr);
+	}
+
+	.leagueflow-calendar__stage {
+		overflow-x: visible;
+	}
+
+	.leagueflow-calendar.is-view-week .leagueflow-calendar__stage {
+		overflow-x: auto;
+	}
+
+	.leagueflow-calendar__dialog-details {
+		grid-template-columns: 1fr;
+	}
+
+	.leagueflow-calendar__dialog {
+		align-items: end;
+		place-items: end center;
+		padding: 0;
+	}
+
+	.leagueflow-calendar__dialog-card {
+		width: 100%;
+		max-height: min(86dvh, 720px);
+		padding: 1rem;
+		border-radius: 8px 8px 0 0;
+	}
+
+	.leagueflow-calendar__dialog-card::before {
+		content: "";
+		display: block;
+		width: 2.6rem;
+		height: 0.25rem;
+		margin: 0 auto 0.85rem;
+		border-radius: 999px;
+		background: var(--leagueflow-border);
+	}
+
+	.leagueflow-calendar__dialog-title {
+		margin-right: 2.25rem;
+		font-size: 1.12rem;
+	}
+
+	.leagueflow-calendar__dialog-details {
+		gap: 0.2rem;
+		margin: 0.85rem 0;
+		font-size: 0.9rem;
+	}
+
+	.leagueflow-calendar__dialog-actions {
+		display: grid;
+		grid-template-columns: 1fr;
+	}
+
+	.leagueflow-calendar__dialog-action {
+		width: 100%;
+	}
+}

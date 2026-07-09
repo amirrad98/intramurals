@@ -1,0 +1,59 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/block.json",
+	"apiVersion": 3,
+	"name": "leagueflow/match-calendar",
+	"title": "Sports Calendar",
+	"category": "widgets",
+	"icon": "calendar-alt",
+	"description": "Display matches and standalone sports calendar events.",
+	"textdomain": "leagueflow",
+	"attributes": {
+		"sport": {
+			"type": "string",
+			"default": ""
+		},
+		"competition": {
+			"type": "string",
+			"default": ""
+		},
+		"season": {
+			"type": "string",
+			"default": ""
+		},
+		"league_level": {
+			"type": "string",
+			"default": ""
+		},
+		"team": {
+			"type": "string",
+			"default": ""
+		},
+		"view": {
+			"type": "string",
+			"default": "month"
+		},
+		"include_events": {
+			"type": "boolean",
+			"default": true
+		},
+		"show_week": {
+			"type": "boolean",
+			"default": true
+		},
+		"show_day": {
+			"type": "boolean",
+			"default": true
+		},
+		"list_initial": {
+			"type": "number",
+			"default": 30
+		},
+		"list_more": {
+			"type": "number",
+			"default": 15
+		}
+	},
+	"editorScript": "leagueflow-blocks",
+	"editorStyle": "leagueflow-editor",
+	"style": "leagueflow-frontend"
+}

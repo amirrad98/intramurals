@@ -1,0 +1,10 @@
+.wp-block[data-type^="leagueflow/"] {
+	outline: 1px dashed #ccd0d4;
+	padding: 0.5rem;
+}
+
+.leagueflow-editor-note {
+	font-size: 12px;
+	color: #50575e;
+	margin-top: 8px;
+}

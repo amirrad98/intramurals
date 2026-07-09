@@ -1,0 +1,295 @@
+.leagueflow-admin-page .leagueflow-admin-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+	gap: 1rem;
+	margin-top: 1rem;
+}
+
+.leagueflow-admin-page .leagueflow-admin-grid--wide {
+	grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+	align-items: start;
+}
+
+.leagueflow-admin-card {
+	background: #fff;
+	border: 1px solid #ccd0d4;
+	padding: 1rem 1.25rem;
+	margin-top: 1rem;
+}
+
+.leagueflow-admin-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-bottom: 0;
+}
+
+.leagueflow-settings-page {
+	max-width: 1280px;
+}
+
+.leagueflow-settings-page > h1 {
+	margin-bottom: 10px;
+}
+
+.leagueflow-settings-grid,
+.leagueflow-settings-secondary {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+	gap: 12px;
+	align-items: start;
+}
+
+.leagueflow-settings-panel,
+.leagueflow-admin-card--compact {
+	box-sizing: border-box;
+	background: #fff;
+	border: 1px solid #ccd0d4;
+	padding: 14px 16px;
+}
+
+.leagueflow-settings-panel h2,
+.leagueflow-admin-card--compact h2 {
+	margin: 0 0 4px;
+	font-size: 14px;
+	line-height: 1.3;
+}
+
+.leagueflow-settings-panel > p,
+.leagueflow-admin-card--compact > p {
+	margin: 0 0 10px;
+	color: #50575e;
+}
+
+.leagueflow-settings-panel .form-table,
+.leagueflow-settings-panel .form-table tbody,
+.leagueflow-settings-panel .form-table tr,
+.leagueflow-settings-panel .form-table th,
+.leagueflow-settings-panel .form-table td {
+	display: block;
+	box-sizing: border-box;
+	margin: 0;
+	width: auto;
+}
+
+.leagueflow-settings-panel .form-table tbody {
+	display: grid;
+	gap: 10px 14px;
+}
+
+.leagueflow-settings-panel--rules .form-table tbody {
+	grid-template-columns: repeat(3, minmax(80px, 1fr));
+}
+
+.leagueflow-settings-panel--routing .form-table tbody {
+	grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.leagueflow-setting-row--wide {
+	grid-column: 1 / -1;
+}
+
+.leagueflow-settings-panel .form-table th,
+.leagueflow-settings-panel .form-table td {
+	padding: 0;
+}
+
+.leagueflow-settings-panel .form-table th {
+	margin-bottom: 3px;
+	color: #1d2327;
+	font-size: 12px;
+	font-weight: 600;
+	line-height: 1.3;
+}
+
+.leagueflow-settings-panel input[type="number"].small-text {
+	width: 64px;
+}
+
+.leagueflow-settings-panel input[type="text"].regular-text,
+.leagueflow-settings-panel select {
+	width: 100%;
+	max-width: 100%;
+	min-height: 30px;
+}
+
+.leagueflow-settings-panel label {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	line-height: 1.35;
+}
+
+.leagueflow-tie-breakers__grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+	gap: 8px;
+}
+
+.leagueflow-settings-panel .leagueflow-tie-breaker {
+	display: grid;
+	align-items: stretch;
+	gap: 3px;
+}
+
+.leagueflow-tie-breaker span {
+	color: #50575e;
+	font-size: 12px;
+	font-weight: 600;
+}
+
+.leagueflow-tie-breakers .description {
+	margin: 8px 0 0;
+}
+
+.leagueflow-settings-form .submit {
+	margin: 12px 0 0;
+	padding: 0;
+}
+
+.leagueflow-settings-secondary {
+	margin-top: 12px;
+}
+
+.leagueflow-admin-card--compact {
+	margin-top: 0;
+}
+
+.leagueflow-admin-card--compact p:last-child,
+.leagueflow-admin-card--compact form {
+	margin-bottom: 0;
+}
+
+.leagueflow-form-table select,
+.leagueflow-form-table input[type="text"],
+.leagueflow-form-table input[type="datetime-local"],
+.leagueflow-form-table input[type="date"],
+.leagueflow-form-table input[type="time"] {
+	min-width: 280px;
+	max-width: 100%;
+}
+
+.leagueflow-form-table input[type="time"],
+.leagueflow-form-table input[type="number"].small-text {
+	min-width: 0;
+}
+
+.leagueflow-field-page .leagueflow-admin-card h2 {
+	margin-top: 0;
+}
+
+.leagueflow-availability-table td,
+.leagueflow-slots-table td {
+	vertical-align: top;
+}
+
+.leagueflow-filter-bar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.75rem;
+	margin: 1rem 0;
+}
+
+.leagueflow-filter-bar label {
+	font-weight: 600;
+}
+
+.leagueflow-sport-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+	gap: 1rem;
+	margin-top: 1rem;
+}
+
+.leagueflow-sport-card {
+	display: block;
+	background: #fff;
+	border: 1px solid #ccd0d4;
+	padding: 1rem;
+	cursor: pointer;
+}
+
+.leagueflow-sport-card input[type="checkbox"] {
+	margin: 0 0 0.75rem;
+}
+
+.leagueflow-sport-card__icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 32px;
+	height: 32px;
+	margin-bottom: 0.75rem;
+}
+
+.leagueflow-sport-card__icon img,
+.leagueflow-sport-card__icon svg {
+	display: block;
+	width: 24px;
+	height: 24px;
+}
+
+.leagueflow-sport-card__title,
+.leagueflow-sport-card__description,
+.leagueflow-sport-card__meta {
+	display: block;
+}
+
+.leagueflow-sport-card__title {
+	font-weight: 600;
+	margin-bottom: 0.5rem;
+}
+
+.leagueflow-sport-card__description {
+	color: #1d2327;
+	margin-bottom: 0.5rem;
+}
+
+.leagueflow-sport-card__meta {
+	color: #50575e;
+	font-size: 12px;
+}
+
+.leagueflow-admin-sport-standings {
+	margin: 1rem 0 1.5rem;
+}
+
+.leagueflow-admin-sport-standings__grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+	gap: 1rem;
+}
+
+.leagueflow-admin-sport-standings__panel {
+	background: #fff;
+	border: 1px solid #ccd0d4;
+}
+
+.leagueflow-admin-sport-standings__header {
+	display: flex;
+	justify-content: space-between;
+	gap: 1rem;
+	padding: 0.85rem 1rem;
+	font-weight: 600;
+}
+
+.leagueflow-admin-sport-standings__header span:last-child {
+	color: #646970;
+	font-weight: 400;
+}
+
+.leagueflow-admin-sport-standings__body {
+	border-top: 1px solid #ccd0d4;
+	overflow-x: auto;
+	padding: 1rem;
+}
+
+@media (max-width: 782px) {
+	.leagueflow-settings-grid,
+	.leagueflow-settings-secondary,
+	.leagueflow-settings-panel--rules .form-table tbody,
+	.leagueflow-settings-panel--routing .form-table tbody {
+		grid-template-columns: 1fr;
+	}
+}

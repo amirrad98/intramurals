@@ -1,0 +1,35 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/block.json",
+	"apiVersion": 3,
+	"name": "leagueflow/sport-standings",
+	"title": "Sport Standings",
+	"category": "widgets",
+	"icon": "groups",
+	"description": "Display standings grouped by enabled sport.",
+	"textdomain": "leagueflow",
+	"attributes": {
+		"competition": {
+			"type": "string",
+			"default": ""
+		},
+		"season": {
+			"type": "string",
+			"default": ""
+		},
+		"league_level": {
+			"type": "string",
+			"default": ""
+		},
+		"sports": {
+			"type": "string",
+			"default": ""
+		},
+		"show_logos": {
+			"type": "boolean",
+			"default": true
+		}
+	},
+	"editorScript": "leagueflow-blocks",
+	"editorStyle": "leagueflow-editor",
+	"style": "leagueflow-frontend"
+}

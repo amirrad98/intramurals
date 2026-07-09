@@ -1,0 +1,23 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/block.json",
+	"apiVersion": 3,
+	"name": "leagueflow/team-roster",
+	"title": "Team Roster",
+	"category": "widgets",
+	"icon": "id-alt",
+	"description": "Display the roster for a selected team.",
+	"textdomain": "leagueflow",
+	"attributes": {
+		"team": {
+			"type": "string",
+			"default": ""
+		},
+		"show_photos": {
+			"type": "boolean",
+			"default": true
+		}
+	},
+	"editorScript": "leagueflow-blocks",
+	"editorStyle": "leagueflow-editor",
+	"style": "leagueflow-frontend"
+}

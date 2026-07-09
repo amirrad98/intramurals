@@ -1,0 +1,22 @@
+.DS_Store
+Thumbs.db
+
+# Editor and local tooling noise.
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Local environment files should never be committed.
+.env
+.env.*
+
+# Dependency/vendor outputs if tooling is added later.
+node_modules/
+vendor/
+dist/
+build/
+
+# Logs and test output.
+*.log
+coverage/
