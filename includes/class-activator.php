@@ -26,6 +26,10 @@ class Activator {
 		update_option( 'leagueflow_settings', $merged );
 		add_option( Sports_Manager::ENABLED_SPORTS_OPTION, array( 'soccer' ) );
 		add_option( Sports_Manager::SETUP_REQUIRED_OPTION, 1 );
+
+		// Flag the first admin request so the user is taken straight to sport setup.
+		set_transient( 'leagueflow_activation_redirect', 1, 30 );
+
 		ensure_portal_roles();
 
 		$post_types = new Post_Types();
@@ -93,6 +97,7 @@ class Activator {
 			}
 		}
 
+		delete_transient( 'leagueflow_activation_redirect' );
 		delete_option( 'leagueflow_settings' );
 		delete_option( 'leagueflow_flush_rewrite' );
 		delete_option( 'leagueflow_league_level_migration_complete' );

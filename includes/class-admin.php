@@ -125,6 +125,7 @@ class Admin {
 	 */
 	public function register() {
 		add_action( 'admin_menu', array( $this, 'register_menus' ) );
+		add_action( 'admin_init', array( $this, 'maybe_force_sport_setup' ) );
 		add_filter( 'parent_file', array( $this, 'filter_admin_menu_parent_file' ) );
 		add_filter( 'submenu_file', array( $this, 'filter_admin_menu_submenu_file' ), 10, 2 );
 		add_action( 'add_meta_boxes', array( $this, 'register_meta_boxes' ) );
@@ -418,16 +419,7 @@ class Admin {
 				</div>
 
 				<div class="leagueflow-admin-card">
-					<h2><?php esc_html_e( 'Quick Start', 'leagueflow' ); ?></h2>
-					<ol>
-						<li><?php esc_html_e( 'Enable the sports you want from the Sports page.', 'leagueflow' ); ?></li>
-						<li><?php esc_html_e( 'Create your league levels, competitions, and seasons first.', 'leagueflow' ); ?></li>
-						<li><?php esc_html_e( 'Add teams, then assign players to each team roster.', 'leagueflow' ); ?></li>
-						<li><?php esc_html_e( 'Create fixtures and mark completed matches as finished to update standings automatically.', 'leagueflow' ); ?></li>
-						<li><?php esc_html_e( 'Use the LeagueFlow blocks or shortcodes on frontend pages for tables, fixtures, rosters, and brackets.', 'leagueflow' ); ?></li>
-					</ol>
-
-					<h3><?php esc_html_e( 'Enabled Sports', 'leagueflow' ); ?></h3>
+					<h2><?php esc_html_e( 'Enabled Sports', 'leagueflow' ); ?></h2>
 					<?php if ( $this->sports_manager->is_setup_required() ) : ?>
 						<p><?php esc_html_e( 'Initial sport setup is still required. Configure the sports you want to enable before building out competitions and schedules.', 'leagueflow' ); ?></p>
 					<?php else : ?>
@@ -2581,12 +2573,66 @@ class Admin {
 	}
 
 	/**
+	 * Force the initial sport setup before any other LeagueFlow admin screen is usable.
+	 *
+	 * Sends the administrator straight to Sports Setup the first time they enter wp-admin
+	 * after activating, and keeps every other LeagueFlow dashboard screen redirecting there
+	 * until the sports have been saved.
+	 *
+	 * @return void
+	 */
+	public function maybe_force_sport_setup() {
+		if ( wp_doing_ajax() || ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		$setup_required = $this->sports_manager->is_setup_required();
+
+		// Redirect once, right after activation, from wherever the admin lands.
+		if ( $setup_required && get_transient( 'leagueflow_activation_redirect' ) ) {
+			delete_transient( 'leagueflow_activation_redirect' );
+
+			// Skip when several plugins were activated in bulk from the plugins screen.
+			if ( ! isset( $_GET['activate-multi'] ) && ! $this->is_sport_setup_screen() ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+				wp_safe_redirect( admin_url( 'admin.php?page=leagueflow-sports' ) );
+				exit;
+			}
+		}
+
+		if ( ! $setup_required ) {
+			return;
+		}
+
+		$page = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+
+		// Only intercept LeagueFlow dashboard screens; never the setup page itself.
+		if ( 'leagueflow-sports' === $page || ( 'leagueflow' !== $page && 0 !== strpos( $page, 'leagueflow-' ) ) ) {
+			return;
+		}
+
+		wp_safe_redirect( admin_url( 'admin.php?page=leagueflow-sports' ) );
+		exit;
+	}
+
+	/**
+	 * Whether the current request targets the Sports Setup screen.
+	 *
+	 * @return bool
+	 */
+	protected function is_sport_setup_screen() {
+		$page = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+
+		return 'leagueflow-sports' === $page;
+	}
+
+	/**
 	 * Output admin notices.
 	 *
 	 * @return void
 	 */
 	public function render_admin_notices() {
-		if ( $this->sports_manager->is_setup_required() && current_user_can( 'manage_options' ) ) {
+		// The setup screen guides the user directly, so the reminder is only useful elsewhere.
+		if ( $this->sports_manager->is_setup_required() && current_user_can( 'manage_options' ) && ! $this->is_sport_setup_screen() ) {
 			printf(
 				'<div class="notice notice-warning"><p>%1$s <a href="%2$s">%3$s</a></p></div>',
 				esc_html__( 'LeagueFlow still needs its initial sport setup. Enable the sports you want before building out league data.', 'leagueflow' ),
@@ -2720,14 +2766,18 @@ class Admin {
 
 		check_admin_referer( 'leagueflow_save_sports', 'leagueflow_save_sports_nonce' );
 
+		// Capture this before the update clears the flag so we can tell setup from a later edit.
+		$was_initial_setup = $this->sports_manager->is_setup_required();
+
 		$sports = isset( $_POST['leagueflow_enabled_sports'] ) ? array_map( 'sanitize_key', (array) wp_unslash( $_POST['leagueflow_enabled_sports'] ) ) : array();
 
 		$this->sports_manager->update_enabled_sports( $sports );
 
+		// After the first-time setup, drop the user into the Overview; later edits stay on Sports.
 		wp_safe_redirect(
 			add_query_arg(
 				array(
-					'page'                   => 'leagueflow-sports',
+					'page'                    => $was_initial_setup ? 'leagueflow' : 'leagueflow-sports',
 					'leagueflow_sports_saved' => 1,
 				),
 				admin_url( 'admin.php' )
