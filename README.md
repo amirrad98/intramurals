@@ -12,6 +12,7 @@ LeagueFlow is a classic WordPress plugin for running multi-sport leagues with te
 - Standings are calculated from finished match scores and are never entered manually.
 - Knockout brackets are built from match meta (`lf_is_knockout`, `lf_round_label`, `lf_round_order`, `lf_next_match_id`, `lf_next_match_slot`).
 - Frontend blocks and shortcodes use the same server-side renderer for consistent output.
+- LeagueFlow ships portable public templates for team pages, match pages, and match archives. Classic themes use the bundled PHP wrappers, and block themes receive plugin-registered block templates unless the active theme or Site Editor provides a more specific override.
 
 ## Folder Structure
 
