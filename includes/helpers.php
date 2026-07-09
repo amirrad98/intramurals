@@ -33,6 +33,7 @@ function defaults() {
 		'max_games_per_day_per_team' => 0,
 		'captain_registration_open' => 1,
 		'player_registration_open' => 0,
+		'registration_email'    => '',
 		'cleanup_on_uninstall'  => 0,
 	);
 }
@@ -281,6 +282,7 @@ function ensure_portal_roles() {
 	if ( $admin ) {
 		$admin->add_cap( 'leagueflow_manage_profile' );
 		$admin->add_cap( 'leagueflow_manage_team' );
+		$admin->add_cap( 'leagueflow_manage_placements' );
 	}
 }
 
@@ -325,6 +327,53 @@ function get_team_manager_user_ids( $team_id ) {
 }
 
 /**
+ * Normalize one player's team-specific roster fields.
+ *
+ * @param mixed $value Raw detail value.
+ * @return array{is_captain: int, jersey_number: int|string, position: string}
+ */
+function sanitize_player_team_detail( $value ) {
+	$value      = is_array( $value ) ? $value : array();
+	$jersey_raw = isset( $value['jersey_number'] ) && ! is_array( $value['jersey_number'] )
+		? trim( (string) $value['jersey_number'] )
+		: '';
+	$jersey     = '';
+
+	if ( '' !== $jersey_raw && is_numeric( $jersey_raw ) && (int) $jersey_raw >= 0 ) {
+		$jersey = absint( $jersey_raw );
+	}
+
+	return array(
+		'is_captain'    => empty( $value['is_captain'] ) ? 0 : 1,
+		'jersey_number' => $jersey,
+		'position'      => sanitize_text_field( (string) ( $value['position'] ?? '' ) ),
+	);
+}
+
+/**
+ * Normalize team-specific roster details keyed by team post ID.
+ *
+ * @param mixed $value Raw details map.
+ * @return array<int, array{is_captain: int, jersey_number: int|string, position: string}>
+ */
+function sanitize_player_team_details( $value ) {
+	$value   = is_array( $value ) ? $value : array();
+	$details = array();
+
+	foreach ( $value as $team_id => $detail ) {
+		$team_id = absint( $team_id );
+
+		if ( ! $team_id || ! is_array( $detail ) ) {
+			continue;
+		}
+
+		$details[ $team_id ] = sanitize_player_team_detail( $detail );
+	}
+
+	return $details;
+}
+
+/**
  * Get every team a player belongs to, including legacy primary-team meta.
  *
  * @param int $player_id Player post ID.
@@ -344,6 +393,125 @@ function get_player_team_ids( $player_id ) {
 }
 
 /**
+ * Get all team-specific roster details, with a lazy legacy fallback.
+ *
+ * @param int $player_id Player post ID.
+ * @return array<int, array{is_captain: int, jersey_number: int|string, position: string}>
+ */
+function get_player_team_details( $player_id ) {
+	$player_id = absint( $player_id );
+	$details   = sanitize_player_team_details( get_post_meta( $player_id, 'lf_player_team_details', true ) );
+	$primary   = absint( get_post_meta( $player_id, 'lf_team_id', true ) );
+	$user_id   = absint( get_post_meta( $player_id, 'lf_user_id', true ) );
+
+	foreach ( get_player_team_ids( $player_id ) as $team_id ) {
+		if ( isset( $details[ $team_id ] ) ) {
+			continue;
+		}
+
+		$is_managed_team = $user_id && in_array( $user_id, get_team_manager_user_ids( $team_id ), true );
+		$is_primary      = $team_id === $primary;
+
+		$details[ $team_id ] = sanitize_player_team_detail(
+			array(
+				'is_captain'    => $is_managed_team || ( $is_primary && (bool) get_post_meta( $player_id, 'lf_is_captain', true ) ),
+				'jersey_number' => $is_primary ? get_post_meta( $player_id, 'lf_jersey_number', true ) : '',
+				'position'      => $is_primary ? get_post_meta( $player_id, 'lf_position', true ) : '',
+			)
+		);
+	}
+
+	return $details;
+}
+
+/**
+ * Get a player's roster details for one team.
+ *
+ * @param int $player_id Player post ID.
+ * @param int $team_id Team post ID.
+ * @return array{is_captain: int, jersey_number: int|string, position: string}
+ */
+function get_player_team_detail( $player_id, $team_id ) {
+	$details = get_player_team_details( absint( $player_id ) );
+	$team_id = absint( $team_id );
+
+	return isset( $details[ $team_id ] ) ? $details[ $team_id ] : sanitize_player_team_detail( array() );
+}
+
+/**
+ * Keep legacy single-team roster fields synchronized for compatibility.
+ *
+ * @param int $player_id Player post ID.
+ * @return void
+ */
+function sync_player_legacy_team_meta( $player_id ) {
+	$player_id = absint( $player_id );
+	$team_ids  = get_player_team_ids( $player_id );
+	$primary   = absint( get_post_meta( $player_id, 'lf_team_id', true ) );
+
+	if ( $primary && ! in_array( $primary, $team_ids, true ) ) {
+		$primary = 0;
+	}
+
+	if ( ! $primary && ! empty( $team_ids ) ) {
+		$primary = absint( $team_ids[0] );
+		update_post_meta( $player_id, 'lf_team_id', $primary );
+	}
+
+	$details    = get_player_team_details( $player_id );
+	$is_captain = false;
+
+	foreach ( $team_ids as $team_id ) {
+		if ( ! empty( $details[ $team_id ]['is_captain'] ) ) {
+			$is_captain = true;
+			break;
+		}
+	}
+
+	update_post_meta( $player_id, 'lf_is_captain', $is_captain ? 1 : 0 );
+
+	$primary_detail = $primary && isset( $details[ $primary ] ) ? $details[ $primary ] : sanitize_player_team_detail( array() );
+
+	if ( '' === $primary_detail['jersey_number'] ) {
+		delete_post_meta( $player_id, 'lf_jersey_number' );
+	} else {
+		update_post_meta( $player_id, 'lf_jersey_number', $primary_detail['jersey_number'] );
+	}
+
+	if ( '' === $primary_detail['position'] ) {
+		delete_post_meta( $player_id, 'lf_position' );
+	} else {
+		update_post_meta( $player_id, 'lf_position', $primary_detail['position'] );
+	}
+}
+
+/**
+ * Save roster details for one team without affecting other memberships.
+ *
+ * @param int                  $player_id Player post ID.
+ * @param int                  $team_id Team post ID.
+ * @param array<string, mixed> $detail Roster detail updates.
+ * @return bool
+ */
+function set_player_team_detail( $player_id, $team_id, $detail ) {
+	$player_id = absint( $player_id );
+	$team_id   = absint( $team_id );
+
+	if ( ! $player_id || ! $team_id || 'lf_player' !== get_post_type( $player_id ) || 'lf_team' !== get_post_type( $team_id ) ) {
+		return false;
+	}
+
+	$details            = get_player_team_details( $player_id );
+	$current            = isset( $details[ $team_id ] ) ? $details[ $team_id ] : sanitize_player_team_detail( array() );
+	$details[ $team_id ] = sanitize_player_team_detail( array_merge( $current, is_array( $detail ) ? $detail : array() ) );
+
+	update_post_meta( $player_id, 'lf_player_team_details', sanitize_player_team_details( $details ) );
+	sync_player_legacy_team_meta( $player_id );
+
+	return true;
+}
+
+/**
  * Replace a player's team memberships while keeping legacy primary-team meta.
  *
  * @param int        $player_id Player post ID.
@@ -351,10 +519,19 @@ function get_player_team_ids( $player_id ) {
  * @return void
  */
 function set_player_team_ids( $player_id, $team_ids ) {
+	$player_id = absint( $player_id );
 	$team_ids = sanitize_user_id_list( $team_ids );
+	$details  = get_player_team_details( $player_id );
+	$kept     = array();
 
-	update_post_meta( absint( $player_id ), 'lf_team_ids', $team_ids );
-	update_post_meta( absint( $player_id ), 'lf_team_id', empty( $team_ids ) ? 0 : absint( $team_ids[0] ) );
+	foreach ( $team_ids as $team_id ) {
+		$kept[ $team_id ] = isset( $details[ $team_id ] ) ? $details[ $team_id ] : sanitize_player_team_detail( array() );
+	}
+
+	update_post_meta( $player_id, 'lf_team_ids', $team_ids );
+	update_post_meta( $player_id, 'lf_team_id', empty( $team_ids ) ? 0 : absint( $team_ids[0] ) );
+	update_post_meta( $player_id, 'lf_player_team_details', sanitize_player_team_details( $kept ) );
+	sync_player_legacy_team_meta( $player_id );
 }
 
 /**
@@ -401,6 +578,54 @@ function remove_player_team_id( $player_id, $team_id ) {
  */
 function player_has_team( $player_id, $team_id ) {
 	return in_array( absint( $team_id ), get_player_team_ids( $player_id ), true );
+}
+
+/**
+ * Get every player on a team, including players without a jersey number.
+ *
+ * @param int $team_id Team post ID.
+ * @return array<int, \WP_Post>
+ */
+function get_team_roster_player_posts( $team_id ) {
+	$team_id = absint( $team_id );
+	$players = array_values(
+		array_filter(
+			get_posts(
+				array(
+					'post_type'      => 'lf_player',
+					'post_status'    => array( 'publish', 'draft', 'pending', 'future', 'private' ),
+					'posts_per_page' => -1,
+					'orderby'        => 'title',
+					'order'          => 'ASC',
+				)
+			),
+			static function( $player ) use ( $team_id ) {
+				return $player instanceof \WP_Post && player_has_team( $player->ID, $team_id );
+			}
+		)
+	);
+
+	usort(
+		$players,
+		static function( $first, $second ) use ( $team_id ) {
+			$first_detail  = get_player_team_detail( $first->ID, $team_id );
+			$second_detail = get_player_team_detail( $second->ID, $team_id );
+			$first_has     = '' !== $first_detail['jersey_number'];
+			$second_has    = '' !== $second_detail['jersey_number'];
+
+			if ( $first_has !== $second_has ) {
+				return $first_has ? -1 : 1;
+			}
+
+			if ( $first_has && (int) $first_detail['jersey_number'] !== (int) $second_detail['jersey_number'] ) {
+				return (int) $first_detail['jersey_number'] <=> (int) $second_detail['jersey_number'];
+			}
+
+			return strcasecmp( $first->post_title, $second->post_title );
+		}
+	);
+
+	return $players;
 }
 
 /**
@@ -451,6 +676,260 @@ function is_captain_registration_enabled() {
  */
 function is_player_registration_enabled() {
 	return 1 === bool_to_int( get_setting( 'player_registration_open', 0 ) );
+}
+
+/**
+ * Resolve the inbox used for registration and placement notifications.
+ *
+ * @return string
+ */
+function get_registration_email() {
+	$email = sanitize_email( (string) get_setting( 'registration_email', '' ) );
+
+	if ( ! is_email( $email ) ) {
+		$email = sanitize_email( (string) get_option( 'admin_email', '' ) );
+	}
+
+	return is_email( $email ) ? $email : '';
+}
+
+/**
+ * Whether an email may create a new captain or player registration.
+ *
+ * Existing linked profiles are checked separately and remain grandfathered.
+ *
+ * @param string $email Email address.
+ * @return bool
+ */
+function is_registration_email_allowed( $email ) {
+	$email   = strtolower( sanitize_email( $email ) );
+	$domain  = is_email( $email ) ? substr( strrchr( $email, '@' ), 1 ) : '';
+	$allowed = 'unbc.ca' === $domain || ( strlen( $domain ) > 8 && '.unbc.ca' === substr( $domain, -8 ) );
+
+	/**
+	 * Filter whether an email may self-register for LeagueFlow.
+	 *
+	 * @param bool   $allowed Whether the email is allowed.
+	 * @param string $email   Sanitized lowercase email.
+	 */
+	return (bool) apply_filters( 'leagueflow_registration_email_allowed', $allowed, $email );
+}
+
+/**
+ * Assign a player to a team and keep sport/level preferences synchronized.
+ *
+ * @param int                  $player_id Player ID.
+ * @param int                  $team_id Team ID.
+ * @param array<string, mixed> $details Optional team-specific roster fields.
+ * @return bool
+ */
+function assign_player_to_team( $player_id, $team_id, $details = array() ) {
+	$player = get_post( absint( $player_id ) );
+	$team   = get_post( absint( $team_id ) );
+
+	if ( ! $player instanceof \WP_Post || 'lf_player' !== $player->post_type || ! $team instanceof \WP_Post || 'lf_team' !== $team->post_type ) {
+		return false;
+	}
+
+	add_player_team_id( $player->ID, $team->ID );
+	set_player_team_detail( $player->ID, $team->ID, is_array( $details ) ? $details : array() );
+
+	$sport_id   = get_post_primary_term_id( $team->ID, 'lf_sport' );
+	$sport_slug = get_post_primary_term_slug( $team->ID, 'lf_sport' );
+	$level_id   = get_post_primary_term_id( $team->ID, 'lf_league_level' );
+
+	if ( $sport_id ) {
+		wp_set_object_terms( $player->ID, array( $sport_id ), 'lf_sport', true );
+	}
+
+	if ( $level_id ) {
+		wp_set_object_terms( $player->ID, array( $level_id ), 'lf_league_level', true );
+	}
+
+	if ( $sport_slug && $level_id ) {
+		$mapping = get_post_meta( $player->ID, 'lf_player_sport_levels', true );
+		$mapping = is_array( $mapping ) ? $mapping : array();
+		$mapping[ $sport_slug ] = $level_id;
+		update_post_meta( $player->ID, 'lf_player_sport_levels', $mapping );
+	}
+
+	return true;
+}
+
+/**
+ * Backfill team-specific roster details once while preserving legacy fields.
+ *
+ * @return void
+ */
+function ensure_player_team_details_migration() {
+	$migration_version = 2;
+
+	if ( (int) get_option( 'leagueflow_player_team_details_migration_complete' ) >= $migration_version ) {
+		return;
+	}
+
+	$managed_teams_by_user = array();
+	$team_ids              = get_posts(
+		array(
+			'post_type'      => 'lf_team',
+			'post_status'    => 'any',
+			'posts_per_page' => -1,
+			'fields'         => 'ids',
+		)
+	);
+
+	foreach ( $team_ids as $team_id ) {
+		foreach ( get_team_manager_user_ids( $team_id ) as $manager_user_id ) {
+			$managed_teams_by_user[ $manager_user_id ][] = absint( $team_id );
+		}
+	}
+
+	$player_ids = get_posts(
+		array(
+			'post_type'      => 'lf_player',
+			'post_status'    => 'any',
+			'posts_per_page' => -1,
+			'fields'         => 'ids',
+		)
+	);
+
+	foreach ( $player_ids as $player_id ) {
+		$player_id = absint( $player_id );
+		$user_id   = absint( get_post_meta( $player_id, 'lf_user_id', true ) );
+		$team_ids  = array_values( array_unique( array_merge( get_player_team_ids( $player_id ), $managed_teams_by_user[ $user_id ] ?? array() ) ) );
+
+		if ( empty( $team_ids ) ) {
+			continue;
+		}
+
+		$saved          = sanitize_player_team_details( get_post_meta( $player_id, 'lf_player_team_details', true ) );
+		$primary        = absint( get_post_meta( $player_id, 'lf_team_id', true ) );
+		$primary        = in_array( $primary, $team_ids, true ) ? $primary : absint( $team_ids[0] );
+		$legacy_captain = (bool) get_post_meta( $player_id, 'lf_is_captain', true );
+		$legacy_jersey  = get_post_meta( $player_id, 'lf_jersey_number', true );
+		$legacy_position = get_post_meta( $player_id, 'lf_position', true );
+		$details        = array();
+
+		$team_ids = array_values( array_unique( array_merge( array( $primary ), $team_ids ) ) );
+		update_post_meta( $player_id, 'lf_team_ids', $team_ids );
+		update_post_meta( $player_id, 'lf_team_id', $primary );
+
+		foreach ( $team_ids as $team_id ) {
+			$is_primary = $team_id === $primary;
+			$detail     = isset( $saved[ $team_id ] )
+				? $saved[ $team_id ]
+				: sanitize_player_team_detail(
+					array(
+						'is_captain'    => $is_primary && $legacy_captain,
+						'jersey_number' => $is_primary ? $legacy_jersey : '',
+						'position'      => $is_primary ? $legacy_position : '',
+					)
+				);
+
+			if ( $user_id && in_array( $user_id, get_team_manager_user_ids( $team_id ), true ) ) {
+				$detail['is_captain'] = 1;
+			}
+
+			$details[ $team_id ] = sanitize_player_team_detail( $detail );
+		}
+
+		update_post_meta( $player_id, 'lf_player_team_details', $details );
+
+		foreach ( $team_ids as $team_id ) {
+			assign_player_to_team( $player_id, $team_id, $details[ $team_id ] );
+		}
+
+		sync_player_legacy_team_meta( $player_id );
+	}
+
+	update_option( 'leagueflow_player_team_details_migration_complete', $migration_version );
+}
+
+/**
+ * Get the level saved on a request, falling back to its selected team.
+ *
+ * @param int $request_id Join request ID.
+ * @return int
+ */
+function get_join_request_level_id( $request_id ) {
+	$level_id = absint( get_post_meta( absint( $request_id ), 'lf_league_level_id', true ) );
+
+	if ( $level_id ) {
+		return $level_id;
+	}
+
+	$team_id = absint( get_post_meta( absint( $request_id ), 'lf_team_id', true ) );
+
+	return $team_id ? get_post_primary_term_id( $team_id, 'lf_league_level' ) : 0;
+}
+
+/**
+ * Resolve team manager email recipients.
+ *
+ * @param int $team_id Team ID.
+ * @return array<int, string>
+ */
+function get_team_manager_emails( $team_id ) {
+	$emails = array();
+
+	foreach ( get_team_manager_user_ids( absint( $team_id ) ) as $user_id ) {
+		$user = get_user_by( 'id', $user_id );
+
+		if ( $user instanceof \WP_User && is_email( $user->user_email ) ) {
+			$emails[] = strtolower( sanitize_email( $user->user_email ) );
+		}
+	}
+
+	return array_values( array_unique( $emails ) );
+}
+
+/**
+ * Send a registration email without making the underlying workflow depend on mail.
+ *
+ * @param string|array<int, string> $recipients Email recipient or recipients.
+ * @param string                    $subject Subject.
+ * @param string                    $message Plain-text message.
+ * @return bool
+ */
+function send_registration_email( $recipients, $subject, $message ) {
+	$recipients = is_array( $recipients ) ? $recipients : array( $recipients );
+	$recipients = array_values(
+		array_unique(
+			array_filter(
+				array_map( 'sanitize_email', $recipients ),
+				'is_email'
+			)
+		)
+	);
+
+	if ( empty( $recipients ) ) {
+		error_log( 'LeagueFlow registration email failed: no valid recipients.' ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+		set_transient( 'leagueflow_registration_mail_warning', 1, DAY_IN_SECONDS );
+		return false;
+	}
+
+	$mail_exception = false;
+
+	try {
+		$sent = wp_mail(
+			$recipients,
+			sanitize_text_field( $subject ),
+			wp_strip_all_tags( $message )
+		);
+	} catch ( \Throwable $exception ) {
+		$sent           = false;
+		$mail_exception = true;
+		error_log( 'LeagueFlow registration email exception: ' . $exception->getMessage() ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+	}
+
+	if ( ! $sent ) {
+		if ( ! $mail_exception ) {
+			error_log( 'LeagueFlow registration email failed: ' . implode( ', ', $recipients ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+		}
+		set_transient( 'leagueflow_registration_mail_warning', 1, DAY_IN_SECONDS );
+	}
+
+	return (bool) $sent;
 }
 
 /**

@@ -22,6 +22,7 @@ class Post_Types {
 	public function register() {
 		add_action( 'init', array( $this, 'register_post_types' ) );
 		add_action( 'init', array( $this, 'register_meta' ) );
+		add_action( 'init', __NAMESPACE__ . '\\ensure_player_team_details_migration', 20 );
 		add_filter( 'use_block_editor_for_post_type', array( $this, 'use_classic_editor_for_supported_types' ), 10, 2 );
 	}
 
@@ -207,6 +208,19 @@ class Post_Types {
 		$this->register_integer_meta( 'lf_player', 'lf_team_id', $shared_args );
 		$this->register_user_ids_meta( 'lf_player', 'lf_team_ids', $shared_args );
 		$this->register_boolean_meta( 'lf_player', 'lf_is_captain', $shared_args );
+		register_post_meta(
+			'lf_player',
+			'lf_player_team_details',
+			array(
+				'single'            => true,
+				'type'              => 'object',
+				'show_in_rest'      => false,
+				'sanitize_callback' => __NAMESPACE__ . '\\sanitize_player_team_details',
+				'auth_callback'     => static function() {
+					return current_user_can( 'edit_posts' );
+				},
+			)
+		);
 
 		$this->register_string_meta( 'lf_match', 'lf_match_datetime', $shared_args );
 		$this->register_string_meta( 'lf_match', 'lf_venue', $shared_args );
@@ -244,6 +258,7 @@ class Post_Types {
 		$this->register_integer_meta( 'lf_join_request', 'lf_player_id', $shared_args );
 		$this->register_integer_meta( 'lf_join_request', 'lf_user_id', $shared_args );
 		$this->register_integer_meta( 'lf_join_request', 'lf_team_id', $shared_args );
+		$this->register_integer_meta( 'lf_join_request', 'lf_league_level_id', $shared_args );
 		$this->register_string_meta( 'lf_join_request', 'lf_sport_slug', $shared_args );
 		$this->register_string_meta( 'lf_join_request', 'lf_request_status', $shared_args );
 		$this->register_string_meta( 'lf_join_request', 'lf_request_note', $shared_args );

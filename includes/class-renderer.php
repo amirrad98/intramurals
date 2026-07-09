@@ -1130,35 +1130,20 @@ class Renderer {
 	 */
 	public function get_roster_items( $team_id ) {
 		$team_id = absint( $team_id );
-		$players = array_filter(
-			get_posts(
-				array(
-					'post_type'      => 'lf_player',
-					'post_status'    => array( 'publish', 'draft', 'pending', 'future', 'private' ),
-					'posts_per_page' => -1,
-					'orderby'        => array(
-						'meta_value_num' => 'ASC',
-						'title'          => 'ASC',
-					),
-					'meta_key'       => 'lf_jersey_number',
-				)
-			),
-			static function( $player ) use ( $team_id ) {
-				return player_has_team( $player->ID, $team_id );
-			}
-		);
+		$players = get_team_roster_player_posts( $team_id );
 
 		$items = array();
 
 		foreach ( $players as $player ) {
+			$detail  = get_player_team_detail( $player->ID, $team_id );
 			$items[] = array(
 				'id'            => $player->ID,
 				'name'          => $player->post_title,
-				'jersey_number' => get_post_meta( $player->ID, 'lf_jersey_number', true ),
-				'position'      => get_post_meta( $player->ID, 'lf_position', true ),
+				'jersey_number' => $detail['jersey_number'],
+				'position'      => $detail['position'],
 				'age'           => get_post_meta( $player->ID, 'lf_age', true ),
 				'nationality'   => get_post_meta( $player->ID, 'lf_nationality', true ),
-				'is_captain'    => (bool) get_post_meta( $player->ID, 'lf_is_captain', true ),
+				'is_captain'    => ! empty( $detail['is_captain'] ),
 				'photo'         => get_post_image( $player->ID, 'thumbnail', 'leagueflow-player__photo' ),
 			);
 		}

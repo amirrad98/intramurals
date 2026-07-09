@@ -174,6 +174,48 @@
 	min-width: 0;
 }
 
+.leagueflow-player-memberships-wrap {
+	max-width: 100%;
+	overflow-x: auto;
+}
+
+.leagueflow-player-memberships {
+	min-width: 760px;
+}
+
+.leagueflow-player-memberships td {
+	vertical-align: middle;
+}
+
+.leagueflow-player-memberships td:first-child {
+	min-width: 180px;
+}
+
+.leagueflow-player-memberships td:first-child strong,
+.leagueflow-player-memberships td:first-child small {
+	display: block;
+}
+
+.leagueflow-player-memberships td:first-child small {
+	margin-top: 3px;
+	color: #646970;
+}
+
+.leagueflow-player-memberships input[type="text"] {
+	min-width: 150px;
+}
+
+.leagueflow-player-memberships__add {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin-top: 12px;
+}
+
+.leagueflow-player-memberships__add > span {
+	font-weight: 600;
+}
+
 .leagueflow-field-page .leagueflow-admin-card h2 {
 	margin-top: 0;
 }

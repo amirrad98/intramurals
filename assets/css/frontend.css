@@ -599,10 +599,10 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 	align-items: center;
 	justify-content: center;
 	min-height: 48px;
-	border: 2px solid var(--leagueflow-accent);
+	border: 2px solid var(--leagueflow-text);
 	border-radius: 2px;
-	background: var(--leagueflow-accent);
-	color: var(--leagueflow-text);
+	background: var(--leagueflow-text);
+	color: var(--leagueflow-surface);
 	padding: 12px 20px;
 	font-family: var(--font-condensed, sans-serif);
 	font-size: 13px;
@@ -616,7 +616,11 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 	transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
 }
 
-.leagueflow-portal .leagueflow-portal__button,
+.leagueflow-portal .leagueflow-portal__button {
+	color: var(--leagueflow-surface);
+	text-decoration: none;
+}
+
 .leagueflow-portal .leagueflow-portal__logout {
 	color: var(--leagueflow-text);
 	text-decoration: none;
@@ -632,15 +636,19 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 .leagueflow-portal-request__actions button:focus,
 .leagueflow-portal-roster__remove button:hover,
 .leagueflow-portal-roster__remove button:focus {
-	border-color: var(--leagueflow-text);
-	background: var(--leagueflow-text);
+	border-color: var(--leagueflow-accent);
+	background: var(--leagueflow-accent);
 	color: var(--leagueflow-surface);
 	text-decoration: none;
 	transform: translateY(-1px);
 }
 
 .leagueflow-portal .leagueflow-portal__button:hover,
-.leagueflow-portal .leagueflow-portal__button:focus,
+.leagueflow-portal .leagueflow-portal__button:focus {
+	color: var(--leagueflow-surface);
+	text-decoration: none;
+}
+
 .leagueflow-portal .leagueflow-portal__logout:hover,
 .leagueflow-portal .leagueflow-portal__logout:focus {
 	color: var(--leagueflow-surface);
@@ -2503,4 +2511,454 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 .leagueflow-availability-rollup__counts {
 	color: var(--leagueflow-muted);
 	font-variant-numeric: tabular-nums;
+}
+
+/* Role-aware first-time onboarding. */
+.leagueflow-portal__view-nav {
+	display: flex;
+	grid-column: 1 / -1;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	padding: 10px;
+	border: 2px solid rgba(15, 58, 45, 0.22);
+	background: var(--leagueflow-surface);
+	box-shadow: 0 12px 28px rgba(5, 24, 18, 0.12);
+}
+
+.leagueflow-portal__view-tabs {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+}
+
+.leagueflow-portal__view-tab {
+	display: inline-flex;
+	align-items: center;
+	min-height: 44px;
+	padding: 9px 14px;
+	border-bottom: 3px solid transparent;
+	color: var(--leagueflow-muted);
+	font-family: var(--font-condensed, sans-serif);
+	font-size: 14px;
+	font-weight: 700;
+	letter-spacing: 0;
+	text-decoration: none;
+	text-transform: uppercase;
+}
+
+.leagueflow-portal__view-tab:hover,
+.leagueflow-portal__view-tab:focus,
+.leagueflow-portal__view-tab.is-active {
+	border-color: var(--leagueflow-accent);
+	color: var(--leagueflow-text);
+	text-decoration: none;
+}
+
+.leagueflow-portal__managed-team-list,
+.leagueflow-portal__membership-list {
+	display: grid;
+	gap: 10px;
+}
+
+.leagueflow-portal__managed-team,
+.leagueflow-portal__membership-row {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 18px;
+	padding: 16px;
+	border: 2px solid rgba(15, 58, 45, 0.14);
+	background: var(--leagueflow-surface-soft);
+}
+
+.leagueflow-portal__managed-team.is-selected {
+	border-color: var(--leagueflow-accent);
+	box-shadow: inset 4px 0 0 var(--leagueflow-accent);
+}
+
+.leagueflow-portal__managed-team h3,
+.leagueflow-portal__membership-row h4 {
+	margin: 0;
+	font-family: var(--font-condensed, sans-serif);
+	font-size: 24px;
+	letter-spacing: 0;
+	line-height: 1.15;
+	text-transform: uppercase;
+}
+
+.leagueflow-portal__membership-row h4 a {
+	color: inherit;
+}
+
+.leagueflow-portal__managed-team-main,
+.leagueflow-portal__membership-row > div {
+	min-width: 0;
+}
+
+.leagueflow-portal__managed-team-meta,
+.leagueflow-portal__membership-details {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px 20px;
+	margin-top: 8px;
+}
+
+.leagueflow-portal__managed-team-meta span,
+.leagueflow-portal__membership-details span {
+	display: inline-flex;
+	gap: 6px;
+	color: var(--leagueflow-text);
+	font-size: 14px;
+}
+
+.leagueflow-portal__managed-team-meta strong,
+.leagueflow-portal__membership-details strong {
+	color: var(--leagueflow-muted);
+	font-family: var(--font-condensed, sans-serif);
+	font-size: 12px;
+	letter-spacing: 0;
+	text-transform: uppercase;
+}
+
+.leagueflow-portal__role-badges {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin-top: 10px;
+}
+
+.leagueflow-portal__role-badges span {
+	display: inline-flex;
+	align-items: center;
+	min-height: 26px;
+	padding: 3px 8px;
+	border-left: 3px solid var(--leagueflow-accent);
+	background: rgba(197, 160, 74, 0.12);
+	font-family: var(--font-condensed, sans-serif);
+	font-size: 12px;
+	font-weight: 700;
+	letter-spacing: 0;
+	text-transform: uppercase;
+}
+
+.leagueflow-portal__membership-row p,
+.leagueflow-portal-team__meta {
+	margin: 6px 0 0;
+	color: var(--leagueflow-muted);
+	font-size: 14px;
+}
+
+.leagueflow-portal__team-workspace .leagueflow-portal-team {
+	padding: 0;
+	border: 0;
+	box-shadow: none;
+}
+
+.leagueflow-portal__captain-identity {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 18px;
+	margin-bottom: 24px;
+	padding: 16px;
+	border: 1px solid rgba(15, 58, 45, 0.14);
+	background: var(--leagueflow-surface-soft);
+}
+
+.leagueflow-portal__captain-identity .leagueflow-portal__summary {
+	margin: 0;
+}
+
+.leagueflow-portal__captain-identity > a {
+	color: var(--leagueflow-text);
+	font-weight: 700;
+}
+
+.leagueflow-portal .leagueflow-portal__button--secondary {
+	border-color: rgba(15, 58, 45, 0.35);
+	background: transparent;
+	color: var(--leagueflow-text);
+}
+
+.leagueflow-portal__role-choice {
+	display: grid;
+	gap: 18px;
+}
+
+.leagueflow-portal__role-actions {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 16px;
+}
+
+.leagueflow-portal__role-action {
+	display: grid;
+	gap: 8px;
+	min-height: 116px;
+	box-sizing: border-box;
+	padding: 20px;
+	border: 2px solid rgba(15, 58, 45, 0.22);
+	border-radius: 4px;
+	background: var(--leagueflow-surface-soft);
+	color: var(--leagueflow-text);
+	text-decoration: none;
+}
+
+.leagueflow-portal__role-action:hover,
+.leagueflow-portal__role-action:focus {
+	border-color: var(--leagueflow-accent);
+	box-shadow: inset 4px 0 0 var(--leagueflow-accent);
+}
+
+.leagueflow-portal__role-action strong {
+	font-family: var(--font-condensed, sans-serif);
+	font-size: 22px;
+	letter-spacing: 0;
+	text-transform: uppercase;
+}
+
+.leagueflow-portal__role-action span {
+	color: var(--leagueflow-muted);
+	line-height: 1.45;
+}
+
+.leagueflow-portal__onboarding {
+	gap: 24px;
+}
+
+.leagueflow-portal__stepper {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+	gap: 8px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.leagueflow-portal__stepper li {
+	display: grid;
+	grid-template-columns: 32px minmax(0, 1fr);
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+	padding: 10px;
+	border-bottom: 3px solid rgba(15, 58, 45, 0.16);
+	color: var(--leagueflow-muted);
+}
+
+.leagueflow-portal__stepper li > span {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 30px;
+	height: 30px;
+	border: 2px solid currentColor;
+	border-radius: 50%;
+	font-family: var(--font-condensed, sans-serif);
+	font-weight: 700;
+}
+
+.leagueflow-portal__stepper li > strong {
+	min-width: 0;
+	font-family: var(--font-condensed, sans-serif);
+	font-size: 14px;
+	letter-spacing: 0;
+	text-transform: uppercase;
+	overflow-wrap: anywhere;
+}
+
+.leagueflow-portal__stepper li.is-current,
+.leagueflow-portal__stepper li.is-complete {
+	border-color: var(--leagueflow-accent);
+	color: var(--leagueflow-text);
+}
+
+.leagueflow-portal__stepper li.is-complete > span {
+	background: var(--leagueflow-accent);
+}
+
+.leagueflow-portal__onboarding-step {
+	display: grid;
+	gap: 18px;
+	min-width: 0;
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+
+.leagueflow-portal__onboarding:not(.is-enhanced) [data-leagueflow-step-next],
+.leagueflow-portal__onboarding:not(.is-enhanced) [data-leagueflow-step-back] {
+	display: none;
+}
+
+.leagueflow-portal__onboarding:not(.is-enhanced) .leagueflow-portal__onboarding-step + .leagueflow-portal__onboarding-step {
+	padding-top: 24px;
+	border-top: 2px solid rgba(15, 58, 45, 0.16);
+}
+
+.leagueflow-portal__onboarding.is-enhanced .leagueflow-portal__onboarding-step[hidden] {
+	display: none;
+}
+
+.leagueflow-portal__step-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 10px;
+	padding-top: 4px;
+}
+
+.leagueflow-portal__form button.leagueflow-portal__button--secondary {
+	border-color: rgba(15, 58, 45, 0.35);
+	background: transparent;
+	color: var(--leagueflow-text);
+}
+
+.leagueflow-portal__form-grid--three {
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.leagueflow-portal__sport-onboarding-row {
+	display: grid;
+	grid-template-columns: minmax(150px, 0.35fr) minmax(0, 1fr);
+	gap: 18px;
+	align-items: start;
+	min-width: 0;
+	padding: 16px;
+	border: 2px solid rgba(15, 58, 45, 0.14);
+	background: var(--leagueflow-surface-soft);
+}
+
+.leagueflow-portal__sport-onboarding-row.is-selected {
+	border-color: rgba(15, 58, 45, 0.34);
+	box-shadow: inset 4px 0 0 var(--leagueflow-accent);
+}
+
+.leagueflow-portal__sport-onboarding-row.is-locked {
+	grid-template-columns: minmax(130px, 0.35fr) minmax(0, 1fr);
+	align-items: center;
+}
+
+.leagueflow-portal__sport-onboarding-row.is-locked > strong {
+	font-family: var(--font-condensed, sans-serif);
+	font-size: 18px;
+	letter-spacing: 0;
+	text-transform: uppercase;
+}
+
+.leagueflow-portal__sport-onboarding-row.is-locked > span {
+	color: var(--leagueflow-muted);
+	font-weight: 700;
+}
+
+.leagueflow-portal__sport-onboarding-controls {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 14px;
+	min-width: 0;
+}
+
+.leagueflow-portal__sport-onboarding-controls > label:last-child {
+	grid-column: 1 / -1;
+}
+
+.leagueflow-portal__sport-onboarding-controls textarea {
+	min-height: 84px;
+}
+
+.leagueflow-portal__review {
+	display: grid;
+	gap: 14px;
+	padding: 18px;
+	border-left: 4px solid var(--leagueflow-accent);
+	background: rgba(197, 160, 74, 0.1);
+}
+
+.leagueflow-portal__review > p {
+	margin: 0;
+}
+
+.leagueflow-portal__review ul {
+	display: grid;
+	gap: 10px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.leagueflow-portal__review li {
+	display: grid;
+	grid-template-columns: minmax(120px, 0.3fr) minmax(0, 1fr);
+	gap: 12px;
+	padding-bottom: 10px;
+	border-bottom: 1px solid rgba(15, 58, 45, 0.14);
+}
+
+.leagueflow-portal__review li strong {
+	font-family: var(--font-condensed, sans-serif);
+	font-size: 13px;
+	letter-spacing: 0;
+	text-transform: uppercase;
+}
+
+.leagueflow-portal__field-error {
+	margin: 0;
+	color: #8a1f1f;
+	font-weight: 700;
+}
+
+@media (max-width: 720px) {
+	.leagueflow-portal__view-nav,
+	.leagueflow-portal__managed-team,
+	.leagueflow-portal__membership-row,
+	.leagueflow-portal__captain-identity {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.leagueflow-portal__view-nav {
+		display: grid;
+	}
+
+	.leagueflow-portal__view-tabs,
+	.leagueflow-portal__view-nav > .leagueflow-portal__button {
+		width: 100%;
+	}
+
+	.leagueflow-portal__view-tab {
+		flex: 1 1 140px;
+		justify-content: center;
+	}
+
+	.leagueflow-portal__managed-team > .leagueflow-portal__button {
+		width: 100%;
+	}
+
+	.leagueflow-portal__role-actions,
+	.leagueflow-portal__form-grid--three,
+	.leagueflow-portal__sport-onboarding-row,
+	.leagueflow-portal__sport-onboarding-row.is-locked,
+	.leagueflow-portal__sport-onboarding-controls,
+	.leagueflow-portal__review li {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.leagueflow-portal__stepper li {
+		grid-template-columns: minmax(0, 1fr);
+		justify-items: center;
+		padding: 8px 4px;
+		text-align: center;
+	}
+
+	.leagueflow-portal__stepper li > strong {
+		font-size: 12px;
+	}
+
+	.leagueflow-portal__step-actions {
+		align-items: stretch;
+		flex-direction: column-reverse;
+	}
+
+	.leagueflow-portal__step-actions button {
+		width: 100%;
+	}
 }

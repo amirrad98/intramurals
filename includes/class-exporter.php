@@ -241,6 +241,15 @@ class Exporter {
 		$linked_user       = $linked_user_id ? get_user_by( 'id', $linked_user_id ) : false;
 		$competition_names = $team_id ? wp_get_post_terms( $team_id, 'lf_competition', array( 'fields' => 'names' ) ) : array();
 		$season_names      = $team_id ? wp_get_post_terms( $team_id, 'lf_season', array( 'fields' => 'names' ) ) : array();
+		$team_detail       = $team_id
+			? get_player_team_detail( $player_id, $team_id )
+			: sanitize_player_team_detail(
+				array(
+					'jersey_number' => get_post_meta( $player_id, 'lf_jersey_number', true ),
+					'position'      => get_post_meta( $player_id, 'lf_position', true ),
+					'is_captain'    => get_post_meta( $player_id, 'lf_is_captain', true ),
+				)
+			);
 		$row               = array(
 			(string) $sport['label'],
 			$team instanceof \WP_Post ? $team->post_title : __( 'Unassigned', 'leagueflow' ),
@@ -254,11 +263,11 @@ class Exporter {
 			$player instanceof \WP_Post ? $player->post_title : '',
 			$player_id ? (string) $player_id : '',
 			$player instanceof \WP_Post ? $this->get_readable_post_status( $player->post_status ) : '',
-			(string) get_post_meta( $player_id, 'lf_jersey_number', true ),
-			(string) get_post_meta( $player_id, 'lf_position', true ),
+			(string) $team_detail['jersey_number'],
+			(string) $team_detail['position'],
 			(string) get_post_meta( $player_id, 'lf_age', true ),
 			(string) get_post_meta( $player_id, 'lf_nationality', true ),
-			(bool) get_post_meta( $player_id, 'lf_is_captain', true ) ? __( 'Yes', 'leagueflow' ) : __( 'No', 'leagueflow' ),
+			! empty( $team_detail['is_captain'] ) ? __( 'Yes', 'leagueflow' ) : __( 'No', 'leagueflow' ),
 			$player_email,
 		);
 

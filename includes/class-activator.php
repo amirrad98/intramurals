@@ -109,6 +109,7 @@ class Activator {
 		delete_option( 'leagueflow_settings' );
 		delete_option( 'leagueflow_flush_rewrite' );
 		delete_option( 'leagueflow_league_level_migration_complete' );
+		delete_option( 'leagueflow_player_team_details_migration_complete' );
 		delete_option( Availability::DB_VERSION_OPTION );
 		delete_option( Sports_Manager::ENABLED_SPORTS_OPTION );
 		delete_option( Sports_Manager::SETUP_REQUIRED_OPTION );

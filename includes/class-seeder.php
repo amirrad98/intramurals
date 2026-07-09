@@ -147,7 +147,7 @@ class Seeder {
 
 		foreach ( $player_map as $team_slug => $players ) {
 			foreach ( $players as $player ) {
-				$this->upsert_post(
+				$player_id = $this->upsert_post(
 					'lf_player',
 					$player['name'],
 					sanitize_title( $player['name'] . '-' . $team_slug ),
@@ -165,6 +165,16 @@ class Seeder {
 					array(
 						'lf_sport'        => $sport_term_id ? array( $sport_term_id ) : array(),
 						'lf_league_level' => array( $level_ids[ $teams[ $team_slug ]['level'] ] ),
+					)
+				);
+
+				assign_player_to_team(
+					$player_id,
+					$team_ids[ $team_slug ],
+					array(
+						'jersey_number' => $player['number'],
+						'position'      => $player['position'],
+						'is_captain'    => $player['captain'] ? 1 : 0,
 					)
 				);
 			}

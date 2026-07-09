@@ -195,12 +195,40 @@ class Portal {
 
 		wp_enqueue_script( 'leagueflow-portal' );
 
-		$user = wp_get_current_user();
+		$user          = wp_get_current_user();
+		$captain_open  = is_captain_registration_enabled();
+		$player_open   = is_player_registration_enabled();
+		$path          = $this->get_requested_onboarding_path();
+		$player_id     = $this->get_player_id_for_user( $user, false );
+		$manager_teams = $this->get_manager_teams( $user->ID );
+		$has_profile   = (bool) $player_id || ! empty( $manager_teams ) || current_user_can( 'manage_options' );
+		$notice        = sanitize_key( wp_unslash( $_GET['leagueflow_notice'] ?? '' ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 
-		$player_id           = $this->get_player_id_for_user( $user, is_player_registration_enabled() );
-		$manager_teams       = $this->get_manager_teams( $user->ID );
-		$needs_initial_setup = $this->player_needs_initial_setup( $player_id, $user );
-		$captain_open        = is_captain_registration_enabled();
+		if ( 'team-registered' === $notice && ! empty( $manager_teams ) ) {
+			$path = '';
+		}
+
+		if ( ! $has_profile && ! $captain_open && ! $player_open ) {
+			return $this->render_portal_shell( $this->render_registration_closed() );
+		}
+
+		if ( ! $has_profile && ! $this->user_can_begin_registration( $user ) ) {
+			return $this->render_portal_shell( $this->render_registration_email_denied( $user ) );
+		}
+
+		if ( ! $has_profile && $captain_open && $player_open && ! $path ) {
+			return $this->render_portal_shell( $this->render_role_choice() );
+		}
+
+		if ( ! $has_profile && ( ( 'captain' === $path && $captain_open ) || ( $captain_open && ! $player_open ) ) ) {
+			return $this->render_portal_shell( $this->render_captain_registration_panel( $user, array(), 0 ) );
+		}
+
+		if ( ! $player_id && $player_open && ( 'player' === $path || ( ! $captain_open && empty( $manager_teams ) ) ) ) {
+			return $this->render_portal_shell(
+				$this->render_player_setup( 0, null, $user, 'leagueflow-profile-form-new', '' )
+			);
+		}
 
 		if ( ! $this->user_can_access_portal( $user, $player_id, $manager_teams ) ) {
 			return $this->render_access_denied( $user );
@@ -210,27 +238,193 @@ class Portal {
 			add_user_role_if_missing( $user->ID, 'leagueflow_team_manager' );
 		}
 
+		$needs_initial_setup = $this->player_needs_initial_setup( $player_id, $user );
+
+		if ( $needs_initial_setup && $captain_open && ! $player_open && empty( $manager_teams ) ) {
+			return $this->render_portal_shell( $this->render_captain_registration_panel( $user, array(), $player_id ) );
+		}
+
+		if ( 'captain' === $path && $captain_open && empty( $manager_teams ) ) {
+			return $this->render_portal_shell( $this->render_captain_registration_panel( $user, array(), $player_id ) );
+		}
+
+		if ( $needs_initial_setup && $player_id ) {
+			return $this->render_portal_shell( $this->render_player_dashboard( $player_id, $user ) );
+		}
+
+		$content        = '';
+		$dashboard_view = $this->get_requested_dashboard_view();
+
+		if ( 'player' === $path && $player_id ) {
+			$dashboard_view = 'player';
+		}
+
+		if ( 'captain' === $path && $captain_open ) {
+			if ( ! empty( $manager_teams ) ) {
+				$content .= $this->render_dashboard_navigation( 'teams', true, (bool) $player_id, false );
+				$content .= $this->render_manager_dashboard( $manager_teams, $player_id, false );
+			} elseif ( $player_id ) {
+				$content .= $this->render_dashboard_navigation( 'teams', false, true, false );
+			}
+
+			$content .= $this->render_captain_registration_panel( $user, $manager_teams, $player_id );
+
+			return $this->render_portal_shell( $content );
+		}
+
+		if ( ! empty( $manager_teams ) ) {
+			$dashboard_view = 'player' === $dashboard_view && $player_id ? 'player' : 'teams';
+			$content       .= $this->render_dashboard_navigation( $dashboard_view, true, (bool) $player_id, false );
+			$content       .= 'player' === $dashboard_view
+				? $this->render_player_dashboard( $player_id, $user )
+				: $this->render_manager_dashboard( $manager_teams, $player_id );
+		} elseif ( $player_id ) {
+			$content .= $this->render_dashboard_navigation( 'player', false, true, $captain_open );
+			$content .= $this->render_player_dashboard( $player_id, $user );
+		}
+
+		return $this->render_portal_shell( $content ? $content : $this->render_registration_closed() );
+	}
+
+	/**
+	 * Wrap portal sections in the shared full-width shell.
+	 *
+	 * @param string $content Portal section markup.
+	 * @return string
+	 */
+	protected function render_portal_shell( $content ) {
 		ob_start();
 		?>
-		<div class="leagueflow leagueflow-portal alignfull">
+		<div class="leagueflow leagueflow-portal alignfull" data-leagueflow-user-id="<?php echo esc_attr( (string) get_current_user_id() ); ?>">
 			<?php echo wp_kses_post( $this->render_notice() ); ?>
-
 			<div class="leagueflow-portal__layout">
-				<?php if ( $captain_open && ! $needs_initial_setup ) : ?>
-					<?php echo $this->render_captain_registration_panel( $user ); ?>
-				<?php endif; ?>
-
-				<?php if ( ! $needs_initial_setup && ! empty( $manager_teams ) ) : ?>
-					<?php echo $this->render_manager_dashboard( $manager_teams ); ?>
-				<?php endif; ?>
-
-				<?php if ( $player_id || is_player_registration_enabled() ) : ?>
-					<?php echo $this->render_player_dashboard( $player_id, $user ); ?>
-				<?php endif; ?>
+				<?php echo $content; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Internal render methods return escaped markup. ?>
 			</div>
 		</div>
 		<?php
 		return (string) ob_get_clean();
+	}
+
+	/**
+	 * Resolve the requested role when both registration windows overlap.
+	 *
+	 * @return string
+	 */
+	protected function get_requested_onboarding_path() {
+		$path = sanitize_key( wp_unslash( $_GET['leagueflow_path'] ?? '' ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+
+		return in_array( $path, array( 'captain', 'player' ), true ) ? $path : '';
+	}
+
+	/**
+	 * Resolve the selected dashboard view for users with more than one role.
+	 *
+	 * @return string
+	 */
+	protected function get_requested_dashboard_view() {
+		$view = sanitize_key( wp_unslash( $_GET['leagueflow_view'] ?? '' ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+
+		return in_array( $view, array( 'teams', 'player' ), true ) ? $view : '';
+	}
+
+	/**
+	 * Render server-backed role navigation that also works without JavaScript.
+	 *
+	 * @param string $active_view Active view.
+	 * @param bool   $has_manager_view Whether the manager view is available.
+	 * @param bool   $has_player_view Whether the player view is available.
+	 * @param bool   $show_create_team Whether to show a create-team action.
+	 * @return string
+	 */
+	protected function render_dashboard_navigation( $active_view, $has_manager_view, $has_player_view, $show_create_team ) {
+		$portal_url = remove_query_arg( array( 'leagueflow_path', 'leagueflow_view', 'leagueflow_team', 'leagueflow_notice' ), $this->get_portal_url() );
+
+		ob_start();
+		?>
+		<nav class="leagueflow-portal__view-nav" aria-label="<?php echo esc_attr__( 'Portal views', 'leagueflow' ); ?>">
+			<div class="leagueflow-portal__view-tabs">
+				<?php if ( $has_manager_view ) : ?>
+					<a class="leagueflow-portal__view-tab<?php echo 'teams' === $active_view ? ' is-active' : ''; ?>" href="<?php echo esc_url( add_query_arg( 'leagueflow_view', 'teams', $portal_url ) ); ?>"<?php echo 'teams' === $active_view ? ' aria-current="page"' : ''; ?>><?php esc_html_e( 'Teams I Manage', 'leagueflow' ); ?></a>
+				<?php endif; ?>
+				<?php if ( $has_player_view ) : ?>
+					<a class="leagueflow-portal__view-tab<?php echo 'player' === $active_view ? ' is-active' : ''; ?>" href="<?php echo esc_url( add_query_arg( 'leagueflow_view', 'player', $portal_url ) ); ?>"<?php echo 'player' === $active_view ? ' aria-current="page"' : ''; ?>><?php esc_html_e( 'My Player Profile', 'leagueflow' ); ?></a>
+				<?php endif; ?>
+			</div>
+			<?php if ( $show_create_team ) : ?>
+				<a class="leagueflow-portal__button" href="<?php echo esc_url( add_query_arg( 'leagueflow_path', 'captain', $portal_url ) ); ?>"><?php esc_html_e( 'Create a team', 'leagueflow' ); ?></a>
+			<?php endif; ?>
+		</nav>
+		<?php
+		return (string) ob_get_clean();
+	}
+
+	/**
+	 * Whether a user without an existing profile may begin self-registration.
+	 *
+	 * @param \WP_User $user User.
+	 * @return bool
+	 */
+	protected function user_can_begin_registration( $user ) {
+		return current_user_can( 'manage_options' ) || ( $user instanceof \WP_User && is_registration_email_allowed( $user->user_email ) );
+	}
+
+	/**
+	 * Render the overlap role chooser.
+	 *
+	 * @return string
+	 */
+	protected function render_role_choice() {
+		$portal_url = $this->get_portal_url();
+
+		ob_start();
+		?>
+		<section class="leagueflow-portal__panel leagueflow-portal__panel--wide leagueflow-portal__role-choice">
+			<p class="leagueflow-portal__eyebrow"><?php esc_html_e( 'Registration', 'leagueflow' ); ?></p>
+			<h2><?php esc_html_e( 'How are you joining?', 'leagueflow' ); ?></h2>
+			<div class="leagueflow-portal__role-actions">
+				<a class="leagueflow-portal__role-action" href="<?php echo esc_url( add_query_arg( 'leagueflow_path', 'captain', $portal_url ) ); ?>">
+					<strong><?php esc_html_e( 'Create a team', 'leagueflow' ); ?></strong>
+					<span><?php esc_html_e( 'Set up your captain profile and register one team.', 'leagueflow' ); ?></span>
+				</a>
+				<a class="leagueflow-portal__role-action" href="<?php echo esc_url( add_query_arg( 'leagueflow_path', 'player', $portal_url ) ); ?>">
+					<strong><?php esc_html_e( 'Join a team', 'leagueflow' ); ?></strong>
+					<span><?php esc_html_e( 'Build your player profile and choose teams by sport.', 'leagueflow' ); ?></span>
+				</a>
+			</div>
+		</section>
+		<?php
+		return (string) ob_get_clean();
+	}
+
+	/**
+	 * Render the state shown to new users when registration is closed.
+	 *
+	 * @return string
+	 */
+	protected function render_registration_closed() {
+		return $this->render_panel(
+			__( 'Registration is closed', 'leagueflow' ),
+			'<p>' . esc_html__( 'Captain and player registration are not open right now. Existing captains and players can still sign in to manage their teams and profiles.', 'leagueflow' ) . '</p>'
+		);
+	}
+
+	/**
+	 * Render a clear domain restriction message for new registrations.
+	 *
+	 * @param \WP_User $user User.
+	 * @return string
+	 */
+	protected function render_registration_email_denied( $user ) {
+		$email = $user instanceof \WP_User ? $user->user_email : '';
+
+		return $this->render_panel(
+			__( 'Use your UNBC email', 'leagueflow' ),
+			'<p>' . sprintf(
+				/* translators: %s: signed-in email address. */
+				esc_html__( '%s cannot be used for a new intramurals registration. Sign out and continue with your verified UNBC email address.', 'leagueflow' ),
+				esc_html( $email )
+			) . '</p><a class="leagueflow-portal__button" href="' . esc_url( wp_logout_url( $this->get_portal_url() ) ) . '">' . esc_html__( 'Use another account', 'leagueflow' ) . '</a>'
+		);
 	}
 
 	/**
@@ -258,6 +452,14 @@ class Portal {
 		}
 
 		switch ( $portal_action ) {
+			case 'complete_player_onboarding':
+				$this->handle_complete_player_onboarding( $user );
+				break;
+
+			case 'complete_captain_onboarding':
+				$this->handle_complete_captain_onboarding( $user );
+				break;
+
 			case 'update_player_profile':
 				$this->handle_update_player_profile( $user );
 				break;
@@ -271,7 +473,7 @@ class Portal {
 				break;
 
 			case 'create_team':
-				$this->handle_create_team( $user );
+				$this->handle_complete_captain_onboarding( $user );
 				break;
 
 			case 'add_player':
@@ -311,7 +513,7 @@ class Portal {
 	 * @param \WP_User $user     Deleted user object.
 	 * @return void
 	 */
-	protected function handle_wp_user_deleted( $user_id, $reassign = 0, $user = null ) {
+	public function handle_wp_user_deleted( $user_id, $reassign = 0, $user = null ) {
 		$user_id = absint( $user_id );
 
 		if ( ! $user_id ) {
@@ -437,10 +639,7 @@ class Portal {
 		}
 
 		$team_ids       = get_player_team_ids( $player_id );
-		$team_titles    = $this->render_player_team_links( $team_ids );
 		$photo          = get_post_image( $player_id, 'medium', 'leagueflow-portal__avatar' );
-		$jersey_number  = (string) get_post_meta( $player_id, 'lf_jersey_number', true );
-		$position       = (string) get_post_meta( $player_id, 'lf_position', true );
 		$upcoming_games = $this->get_upcoming_matches_for_teams( $team_ids, 6 );
 		$profile_form_id = 'leagueflow-profile-form-' . absint( $player_id );
 		$needs_initial_setup = $this->player_needs_initial_setup( $player_id, $user );
@@ -452,7 +651,7 @@ class Portal {
 
 		ob_start();
 		?>
-		<section class="leagueflow-portal__panel">
+		<section class="leagueflow-portal__panel leagueflow-portal__panel--wide">
 			<div class="leagueflow-portal__panel-head">
 				<div>
 					<p class="leagueflow-portal__eyebrow"><?php esc_html_e( 'Player', 'leagueflow' ); ?></p>
@@ -481,19 +680,15 @@ class Portal {
 			<div class="leagueflow-portal__summary">
 				<span><strong><?php esc_html_e( 'Name', 'leagueflow' ); ?></strong><?php echo esc_html( $player->post_title ); ?></span>
 				<span><strong><?php esc_html_e( 'Email', 'leagueflow' ); ?></strong><?php echo esc_html( $user->user_email ); ?></span>
-				<span><strong><?php esc_html_e( 'Teams', 'leagueflow' ); ?></strong><?php echo $team_titles ? wp_kses_post( $team_titles ) : esc_html__( 'Unassigned', 'leagueflow' ); ?></span>
+				<span><strong><?php esc_html_e( 'Teams', 'leagueflow' ); ?></strong><?php echo esc_html( (string) count( $team_ids ) ); ?></span>
 				<span><strong><?php esc_html_e( 'Requests', 'leagueflow' ); ?></strong><?php echo esc_html( (string) $this->count_pending_join_requests( $player_id ) ); ?></span>
 				<span><strong><?php esc_html_e( 'Upcoming', 'leagueflow' ); ?></strong><?php echo esc_html( (string) count( $upcoming_games ) ); ?></span>
 				<?php if ( '' !== $preference_summary ) : ?>
 					<span><strong><?php esc_html_e( 'Sport preferences', 'leagueflow' ); ?></strong><?php echo esc_html( $preference_summary ); ?></span>
 				<?php endif; ?>
-				<?php if ( '' !== $jersey_number ) : ?>
-					<span><strong><?php esc_html_e( 'No.', 'leagueflow' ); ?></strong><?php echo esc_html( $jersey_number ); ?></span>
-				<?php endif; ?>
-				<?php if ( '' !== $position ) : ?>
-					<span><strong><?php esc_html_e( 'Position', 'leagueflow' ); ?></strong><?php echo esc_html( $position ); ?></span>
-				<?php endif; ?>
 			</div>
+
+			<?php echo $this->render_player_team_memberships( $player_id, $team_ids ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 
 			<form id="<?php echo esc_attr( $profile_form_id ); ?>" class="leagueflow-portal__form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" enctype="multipart/form-data">
 				<?php echo $this->render_hidden_fields( 'update_player_profile' ); ?>
@@ -521,27 +716,81 @@ class Portal {
 	}
 
 	/**
+	 * Render the player's role and roster fields independently for each team.
+	 *
+	 * @param int        $player_id Player ID.
+	 * @param array<int> $team_ids Team IDs.
+	 * @return string
+	 */
+	protected function render_player_team_memberships( $player_id, $team_ids ) {
+		ob_start();
+		?>
+		<div class="leagueflow-portal__subsection leagueflow-portal__playing-teams">
+			<h3><?php esc_html_e( 'My Playing Teams', 'leagueflow' ); ?></h3>
+			<?php if ( empty( $team_ids ) ) : ?>
+				<p><?php esc_html_e( 'You are not assigned to a team yet.', 'leagueflow' ); ?></p>
+			<?php else : ?>
+				<div class="leagueflow-portal__membership-list">
+					<?php foreach ( $team_ids as $team_id ) : ?>
+						<?php
+						$team = get_post( $team_id );
+						if ( ! $team instanceof \WP_Post || 'lf_team' !== $team->post_type ) {
+							continue;
+						}
+						$detail    = get_player_team_detail( $player_id, $team_id );
+						$permalink = get_permalink( $team_id );
+						?>
+						<article class="leagueflow-portal__membership-row">
+							<div>
+								<h4><?php echo $permalink ? '<a href="' . esc_url( $permalink ) . '">' . esc_html( $team->post_title ) . '</a>' : esc_html( $team->post_title ); ?></h4>
+								<p><?php echo esc_html( $this->get_sport_label( get_post_primary_term_slug( $team_id, 'lf_sport' ) ) ); ?> <span aria-hidden="true">/</span> <?php echo esc_html( get_post_league_level_label( $team_id ) ?: __( 'Level not specified', 'leagueflow' ) ); ?></p>
+							</div>
+							<div class="leagueflow-portal__membership-details">
+								<span><strong><?php esc_html_e( 'Role', 'leagueflow' ); ?></strong><?php echo ! empty( $detail['is_captain'] ) ? esc_html__( 'Playing captain', 'leagueflow' ) : esc_html__( 'Player', 'leagueflow' ); ?></span>
+								<span><strong><?php esc_html_e( 'No.', 'leagueflow' ); ?></strong><?php echo '' !== $detail['jersey_number'] ? esc_html( (string) $detail['jersey_number'] ) : esc_html__( 'Not set', 'leagueflow' ); ?></span>
+								<span><strong><?php esc_html_e( 'Position', 'leagueflow' ); ?></strong><?php echo '' !== $detail['position'] ? esc_html( $detail['position'] ) : esc_html__( 'Not set', 'leagueflow' ); ?></span>
+							</div>
+						</article>
+					<?php endforeach; ?>
+				</div>
+			<?php endif; ?>
+		</div>
+		<?php
+		return (string) ob_get_clean();
+	}
+
+	/**
 	 * Render the required first-time profile setup screen.
 	 *
 	 * @param int      $player_id Player ID.
-	 * @param \WP_Post $player Player post.
+	 * @param \WP_Post|null $player Player post, or null for a new registration.
 	 * @param \WP_User $user Current user.
 	 * @param string   $profile_form_id Form ID.
 	 * @param string   $photo Existing profile image markup.
 	 * @return string
 	 */
 	protected function render_player_setup( $player_id, $player, $user, $profile_form_id, $photo ) {
+		$draft               = $this->get_onboarding_draft( 'player' );
 		$placeholder_initial = strtoupper( substr( (string) ( $user->display_name ?: $user->user_login ), 0, 1 ) );
 		$needs_name_setup    = $this->player_name_needs_setup( $player, $user );
-		$name_value          = ! $needs_name_setup && $player instanceof \WP_Post ? (string) $player->post_title : '';
+		$name_value          = isset( $draft['name'] ) ? (string) $draft['name'] : ( ! $needs_name_setup && $player instanceof \WP_Post ? (string) $player->post_title : '' );
+		$description_value   = isset( $draft['description'] ) ? (string) $draft['description'] : ( $player instanceof \WP_Post ? (string) $player->post_content : '' );
+		$draft_sports        = isset( $draft['sports'] ) && is_array( $draft['sports'] ) ? $draft['sports'] : array();
+		$draft_levels        = isset( $draft['levels'] ) && is_array( $draft['levels'] ) ? $draft['levels'] : array();
+		$draft_choices       = isset( $draft['choices'] ) && is_array( $draft['choices'] ) ? $draft['choices'] : array();
+		$draft_notes         = isset( $draft['notes'] ) && is_array( $draft['notes'] ) ? $draft['notes'] : array();
+		$sport_groups        = $this->get_requestable_sport_teams();
+		$levels              = $this->get_league_level_terms();
+		$preferences         = $this->get_player_sport_level_preferences( $player_id );
+		$states              = $this->get_player_registration_states( $player_id );
 
 		ob_start();
 		?>
-		<section class="leagueflow-portal__panel leagueflow-portal__panel--setup">
+		<section class="leagueflow-portal__panel leagueflow-portal__panel--setup leagueflow-portal__panel--wide">
 			<div class="leagueflow-portal__panel-head">
 				<div>
-					<p class="leagueflow-portal__eyebrow"><?php esc_html_e( 'First-time setup', 'leagueflow' ); ?></p>
-					<h2><?php esc_html_e( 'Set Up Your Profile', 'leagueflow' ); ?></h2>
+					<p class="leagueflow-portal__eyebrow"><?php esc_html_e( 'Player registration', 'leagueflow' ); ?></p>
+					<h2><?php esc_html_e( 'Set Up Your Player Profile', 'leagueflow' ); ?></h2>
 				</div>
 				<div class="leagueflow-portal__identity">
 					<label class="leagueflow-portal__avatar-upload" title="<?php echo esc_attr__( 'Upload profile image', 'leagueflow' ); ?>">
@@ -558,30 +807,116 @@ class Portal {
 							</svg>
 						</span>
 						<span class="screen-reader-text"><?php esc_html_e( 'Upload profile image', 'leagueflow' ); ?></span>
-						<input class="leagueflow-portal__avatar-upload-input" form="<?php echo esc_attr( $profile_form_id ); ?>" type="file" name="lf_player_photo" accept="image/*" />
+						<input class="leagueflow-portal__avatar-upload-input" form="<?php echo esc_attr( $profile_form_id ); ?>" type="file" name="lf_player_photo" accept="image/*" data-review-label="<?php echo esc_attr__( 'Profile photo', 'leagueflow' ); ?>" />
 					</label>
 				</div>
 			</div>
 
-			<div class="leagueflow-portal__summary">
-				<span><strong><?php esc_html_e( 'Email', 'leagueflow' ); ?></strong><?php echo esc_html( $user->user_email ); ?></span>
-			</div>
+			<form id="<?php echo esc_attr( $profile_form_id ); ?>" class="leagueflow-portal__form leagueflow-portal__onboarding" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" enctype="multipart/form-data" data-leagueflow-onboarding data-onboarding-kind="player" data-verified-email="<?php echo esc_attr( $user->user_email ); ?>">
+				<?php echo $this->render_hidden_fields( 'complete_player_onboarding' ); ?>
+				<?php echo $this->render_onboarding_progress( array( __( 'Profile', 'leagueflow' ), __( 'Sports and teams', 'leagueflow' ), __( 'Review', 'leagueflow' ) ) ); ?>
 
-			<form id="<?php echo esc_attr( $profile_form_id ); ?>" class="leagueflow-portal__form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" enctype="multipart/form-data">
-				<?php echo $this->render_hidden_fields( 'update_player_profile' ); ?>
-				<p class="leagueflow-portal__form-help">
-					<?php esc_html_e( 'Enter your full name and choose every sport you want to play. Rosters and team requests use these saved details.', 'leagueflow' ); ?>
-				</p>
-				<label>
-					<span><?php esc_html_e( 'Full name', 'leagueflow' ); ?></span>
-					<input type="text" name="lf_player_name" value="<?php echo esc_attr( $name_value ); ?>" autocomplete="name" required autofocus />
-				</label>
-				<?php echo $this->render_player_sport_level_fields( $player_id ); ?>
-				<label>
-					<span><?php esc_html_e( 'Description', 'leagueflow' ); ?></span>
-					<textarea name="lf_player_description" rows="6"><?php echo esc_textarea( $player->post_content ); ?></textarea>
-				</label>
-				<button type="submit"><?php esc_html_e( 'Finish setup', 'leagueflow' ); ?></button>
+				<fieldset class="leagueflow-portal__onboarding-step" data-leagueflow-step="1">
+					<legend class="screen-reader-text"><?php esc_html_e( 'Step 1: Profile', 'leagueflow' ); ?></legend>
+					<div class="leagueflow-portal__summary">
+						<span><strong><?php esc_html_e( 'Verified email', 'leagueflow' ); ?></strong><?php echo esc_html( $user->user_email ); ?></span>
+					</div>
+					<label>
+						<span><?php esc_html_e( 'Full name', 'leagueflow' ); ?></span>
+						<input type="text" name="lf_player_name" value="<?php echo esc_attr( $name_value ); ?>" autocomplete="name" required autofocus data-review-label="<?php echo esc_attr__( 'Name', 'leagueflow' ); ?>" />
+					</label>
+					<label>
+						<span><?php esc_html_e( 'Short bio (optional)', 'leagueflow' ); ?></span>
+						<textarea name="lf_player_description" rows="4" placeholder="<?php echo esc_attr__( 'Share anything teammates should know.', 'leagueflow' ); ?>" data-review-label="<?php echo esc_attr__( 'Bio', 'leagueflow' ); ?>"><?php echo esc_textarea( $description_value ); ?></textarea>
+					</label>
+					<div class="leagueflow-portal__step-actions">
+						<button type="button" data-leagueflow-step-next><?php esc_html_e( 'Continue', 'leagueflow' ); ?></button>
+					</div>
+				</fieldset>
+
+				<fieldset class="leagueflow-portal__onboarding-step" data-leagueflow-step="2">
+					<legend class="screen-reader-text"><?php esc_html_e( 'Step 2: Sports and teams', 'leagueflow' ); ?></legend>
+					<p class="leagueflow-portal__form-help"><?php esc_html_e( 'Choose at least one sport. Select a level first, then a team or staff placement.', 'leagueflow' ); ?></p>
+					<div class="leagueflow-portal__sport-preference-list" data-leagueflow-player-onboarding-sports>
+						<?php foreach ( $sport_groups as $sport_slug => $group ) : ?>
+							<?php
+							$state             = $states[ $sport_slug ] ?? array();
+							$is_locked         = ! empty( $state['team_id'] ) || ! empty( $state['request_id'] );
+							$is_selected       = $is_locked || ( ! empty( $draft ) ? in_array( $sport_slug, $draft_sports, true ) : isset( $preferences[ $sport_slug ] ) );
+							$selected_level_id = ! empty( $state['level_id'] ) ? absint( $state['level_id'] ) : ( isset( $draft_levels[ $sport_slug ] ) ? absint( $draft_levels[ $sport_slug ] ) : ( isset( $preferences[ $sport_slug ]['level_id'] ) ? absint( $preferences[ $sport_slug ]['level_id'] ) : 0 ) );
+							$selected_choice   = isset( $draft_choices[ $sport_slug ] ) ? (string) $draft_choices[ $sport_slug ] : '';
+							$input_id          = 'leagueflow-onboarding-sport-' . sanitize_html_class( $sport_slug ) . '-' . absint( $player_id );
+							$level_id          = 'leagueflow-onboarding-level-' . sanitize_html_class( $sport_slug ) . '-' . absint( $player_id );
+							$team_id           = 'leagueflow-onboarding-team-' . sanitize_html_class( $sport_slug ) . '-' . absint( $player_id );
+							?>
+							<div class="leagueflow-portal__sport-onboarding-row<?php echo $is_selected ? ' is-selected' : ''; ?><?php echo $is_locked ? ' is-locked' : ''; ?>" data-leagueflow-player-sport-row data-sport-label="<?php echo esc_attr( $group['label'] ); ?>">
+								<?php if ( $is_locked ) : ?>
+									<input type="hidden" name="lf_player_sports[]" value="<?php echo esc_attr( $sport_slug ); ?>" />
+									<input type="hidden" name="lf_player_sport_levels[<?php echo esc_attr( $sport_slug ); ?>]" value="<?php echo esc_attr( (string) $selected_level_id ); ?>" />
+									<strong><?php echo esc_html( $group['label'] ); ?></strong>
+									<span>
+										<?php
+										if ( ! empty( $state['team_id'] ) ) {
+											echo esc_html( get_the_title( $state['team_id'] ) );
+										} else {
+											echo esc_html( ! empty( $state['team_name'] ) ? $state['team_name'] . ' - pending' : __( 'Staff placement pending', 'leagueflow' ) );
+										}
+										?>
+									</span>
+								<?php else : ?>
+									<label class="leagueflow-portal__sport-choice" for="<?php echo esc_attr( $input_id ); ?>">
+										<input id="<?php echo esc_attr( $input_id ); ?>" type="checkbox" name="lf_player_sports[]" value="<?php echo esc_attr( $sport_slug ); ?>" <?php checked( $is_selected ); ?> data-leagueflow-player-sport-toggle />
+										<span><?php echo esc_html( $group['label'] ); ?></span>
+									</label>
+									<div class="leagueflow-portal__sport-onboarding-controls">
+										<label for="<?php echo esc_attr( $level_id ); ?>">
+											<span><?php esc_html_e( 'Level', 'leagueflow' ); ?></span>
+											<select id="<?php echo esc_attr( $level_id ); ?>" name="lf_player_sport_levels[<?php echo esc_attr( $sport_slug ); ?>]" <?php echo $is_selected ? 'required' : ''; ?> data-leagueflow-player-level-select>
+												<option value=""><?php esc_html_e( 'Choose a level', 'leagueflow' ); ?></option>
+												<?php foreach ( $levels as $level ) : ?>
+													<option value="<?php echo esc_attr( (string) $level->term_id ); ?>" <?php selected( $selected_level_id, (int) $level->term_id ); ?>><?php echo esc_html( $level->name ); ?></option>
+												<?php endforeach; ?>
+											</select>
+										</label>
+										<label for="<?php echo esc_attr( $team_id ); ?>">
+											<span><?php esc_html_e( 'Team', 'leagueflow' ); ?></span>
+											<select id="<?php echo esc_attr( $team_id ); ?>" name="lf_player_team_choices[<?php echo esc_attr( $sport_slug ); ?>]" <?php echo $is_selected ? 'required' : ''; ?> data-leagueflow-onboarding-team-select>
+												<option value=""><?php esc_html_e( 'Choose a team', 'leagueflow' ); ?></option>
+												<?php foreach ( $group['teams'] as $team ) : ?>
+													<?php $team_level_id = get_post_primary_term_id( $team->ID, 'lf_league_level' ); ?>
+													<option value="<?php echo esc_attr( (string) $team->ID ); ?>" data-level-id="<?php echo esc_attr( (string) $team_level_id ); ?>" <?php selected( $selected_choice, (string) $team->ID ); ?>><?php echo esc_html( get_the_title( $team ) ); ?></option>
+												<?php endforeach; ?>
+												<option value="0" data-placement-option <?php selected( $selected_choice, '0' ); ?>><?php esc_html_e( "I don't have a team - place me", 'leagueflow' ); ?></option>
+											</select>
+										</label>
+										<label>
+											<span><?php esc_html_e( 'Note (optional)', 'leagueflow' ); ?></span>
+											<textarea name="lf_player_request_notes[<?php echo esc_attr( $sport_slug ); ?>]" rows="2" data-leagueflow-onboarding-note placeholder="<?php echo esc_attr__( 'Availability, experience, or preferred role.', 'leagueflow' ); ?>"><?php echo esc_textarea( (string) ( $draft_notes[ $sport_slug ] ?? '' ) ); ?></textarea>
+										</label>
+									</div>
+								<?php endif; ?>
+							</div>
+						<?php endforeach; ?>
+					</div>
+					<p class="leagueflow-portal__field-error" data-leagueflow-sport-error hidden><?php esc_html_e( 'Choose at least one sport.', 'leagueflow' ); ?></p>
+					<div class="leagueflow-portal__step-actions">
+						<button type="button" class="leagueflow-portal__button--secondary" data-leagueflow-step-back><?php esc_html_e( 'Back', 'leagueflow' ); ?></button>
+						<button type="button" data-leagueflow-step-next><?php esc_html_e( 'Review', 'leagueflow' ); ?></button>
+					</div>
+				</fieldset>
+
+				<fieldset class="leagueflow-portal__onboarding-step" data-leagueflow-step="3">
+					<legend class="screen-reader-text"><?php esc_html_e( 'Step 3: Review', 'leagueflow' ); ?></legend>
+					<h3><?php esc_html_e( 'Review your registration', 'leagueflow' ); ?></h3>
+					<div class="leagueflow-portal__review" data-leagueflow-onboarding-review>
+						<p><?php esc_html_e( 'Your selected teams will receive approval requests. Staff will handle any placement selections.', 'leagueflow' ); ?></p>
+						<ul data-leagueflow-review-list></ul>
+					</div>
+					<div class="leagueflow-portal__step-actions">
+						<button type="button" class="leagueflow-portal__button--secondary" data-leagueflow-step-back><?php esc_html_e( 'Back', 'leagueflow' ); ?></button>
+						<button type="submit"><?php esc_html_e( 'Finish profile and submit requests', 'leagueflow' ); ?></button>
+					</div>
+				</fieldset>
 			</form>
 		</section>
 		<?php
@@ -592,25 +927,82 @@ class Portal {
 	 * Render manager dashboard.
 	 *
 	 * @param array<int, \WP_Post> $teams Teams.
+	 * @param int                   $player_id Linked player ID.
+	 * @param bool                  $show_workspace Whether to render the selected team workspace.
 	 * @return string
 	 */
-	protected function render_manager_dashboard( $teams ) {
+	protected function render_manager_dashboard( $teams, $player_id = 0, $show_workspace = true ) {
+		$selected_team_id = $show_workspace ? $this->get_requested_manager_team_id( $teams ) : 0;
+		$eligible_sports  = is_captain_registration_enabled() ? $this->get_eligible_captain_sports( $player_id, $teams ) : array();
+		$portal_url       = remove_query_arg( array( 'leagueflow_path', 'leagueflow_team', 'leagueflow_notice' ), $this->get_portal_url() );
+		$selected_team    = null;
+
+		foreach ( $teams as $team ) {
+			if ( (int) $team->ID === $selected_team_id ) {
+				$selected_team = $team;
+				break;
+			}
+		}
+
 		ob_start();
 		?>
-		<section class="leagueflow-portal__panel leagueflow-portal__panel--wide">
+		<section id="my-teams" class="leagueflow-portal__panel leagueflow-portal__panel--wide">
 			<div class="leagueflow-portal__panel-head">
 				<div>
 					<p class="leagueflow-portal__eyebrow"><?php esc_html_e( 'Manager', 'leagueflow' ); ?></p>
 					<h2><?php esc_html_e( 'My Teams', 'leagueflow' ); ?></h2>
 				</div>
+				<?php if ( ! empty( $eligible_sports ) ) : ?>
+					<a class="leagueflow-portal__button" href="<?php echo esc_url( add_query_arg( 'leagueflow_path', 'captain', $portal_url ) ); ?>"><?php esc_html_e( 'Create another team', 'leagueflow' ); ?></a>
+				<?php endif; ?>
 			</div>
 
-			<div class="leagueflow-portal__teams">
+			<div class="leagueflow-portal__managed-team-list">
 				<?php foreach ( $teams as $team ) : ?>
-					<?php echo $this->render_manager_team( $team ); ?>
+					<?php
+					$team_id      = (int) $team->ID;
+					$sport_label  = $this->get_sport_label( get_post_primary_term_slug( $team_id, 'lf_sport' ) );
+					$level_label  = get_post_league_level_label( $team_id );
+					$roster_count = count( get_team_roster_player_posts( $team_id ) );
+					$detail       = $player_id && player_has_team( $player_id, $team_id ) ? get_player_team_detail( $player_id, $team_id ) : null;
+					$manage_url   = add_query_arg(
+						array(
+							'leagueflow_view' => 'teams',
+							'leagueflow_team' => $team_id,
+						),
+						$portal_url
+					) . '#team-workspace';
+					?>
+					<article class="leagueflow-portal__managed-team<?php echo $selected_team_id === $team_id ? ' is-selected' : ''; ?>">
+						<div class="leagueflow-portal__managed-team-main">
+							<h3><?php echo esc_html( get_the_title( $team ) ); ?></h3>
+							<div class="leagueflow-portal__managed-team-meta">
+								<span><strong><?php esc_html_e( 'Sport', 'leagueflow' ); ?></strong><?php echo esc_html( $sport_label ); ?></span>
+								<span><strong><?php esc_html_e( 'Level', 'leagueflow' ); ?></strong><?php echo esc_html( $level_label ? $level_label : __( 'Not specified', 'leagueflow' ) ); ?></span>
+								<span><strong><?php esc_html_e( 'Roster', 'leagueflow' ); ?></strong><?php echo esc_html( (string) $roster_count ); ?></span>
+							</div>
+							<div class="leagueflow-portal__role-badges">
+								<span><?php esc_html_e( 'Manager', 'leagueflow' ); ?></span>
+								<?php if ( is_array( $detail ) ) : ?>
+									<span><?php echo ! empty( $detail['is_captain'] ) ? esc_html__( 'Playing captain', 'leagueflow' ) : esc_html__( 'Player', 'leagueflow' ); ?></span>
+								<?php endif; ?>
+							</div>
+						</div>
+						<a class="leagueflow-portal__button leagueflow-portal__button--secondary" href="<?php echo esc_url( $manage_url ); ?>"><?php esc_html_e( 'Manage team', 'leagueflow' ); ?></a>
+					</article>
 				<?php endforeach; ?>
 			</div>
+
+			<?php if ( is_captain_registration_enabled() && empty( $eligible_sports ) ) : ?>
+				<p class="leagueflow-portal__form-help"><?php esc_html_e( 'You already manage, play in, or have a pending request for every available sport.', 'leagueflow' ); ?></p>
+			<?php endif; ?>
 		</section>
+
+		<?php if ( $selected_team instanceof \WP_Post ) : ?>
+			<section id="team-workspace" class="leagueflow-portal__panel leagueflow-portal__panel--wide leagueflow-portal__team-workspace">
+				<?php echo $this->render_manager_team( $selected_team, $player_id ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+			</section>
+		<?php endif; ?>
 		<?php
 		return (string) ob_get_clean();
 	}
@@ -618,66 +1010,164 @@ class Portal {
 	/**
 	 * Render the captain team registration panel.
 	 *
-	 * @param \WP_User $user Current user.
+	 * @param \WP_User              $user Current user.
+	 * @param array<int, \WP_Post> $manager_teams Existing managed teams.
+	 * @param int                   $player_id Linked player ID.
 	 * @return string
 	 */
-	protected function render_captain_registration_panel( $user ) {
-		$sports_manager = new Sports_Manager();
-		$sports         = $sports_manager->get_enabled_sports();
-		$name           = $this->get_default_user_full_name( $user );
+	protected function render_captain_registration_panel( $user, $manager_teams = array(), $player_id = 0 ) {
+		$draft                    = $this->get_onboarding_draft( 'captain' );
+		$player                   = $player_id ? get_post( $player_id ) : null;
+		$is_repeat                = ! empty( $manager_teams );
+		$sports                   = $this->get_eligible_captain_sports( $player_id, $manager_teams );
+		$name                     = $is_repeat && $player instanceof \WP_Post
+			? $player->post_title
+			: ( isset( $draft['name'] ) ? (string) $draft['name'] : ( $player instanceof \WP_Post && ! $this->player_name_needs_setup( $player, $user ) ? $player->post_title : $this->get_default_user_full_name( $user ) ) );
+		$player_description       = isset( $draft['player_description'] ) ? (string) $draft['player_description'] : ( $player instanceof \WP_Post ? $player->post_content : '' );
+		$draft_sport              = sanitize_key( (string) ( $draft['sport_slug'] ?? '' ) );
+		$draft_level              = absint( $draft['level_id'] ?? 0 );
+		$draft_team               = (string) ( $draft['team_name'] ?? '' );
+		$draft_short              = (string) ( $draft['short_name'] ?? '' );
+		$draft_team_description   = (string) ( $draft['team_description'] ?? '' );
+		$team_step                = $is_repeat ? 1 : 2;
+		$review_step              = $is_repeat ? 2 : 3;
+		$profile_url              = add_query_arg( 'leagueflow_view', 'player', remove_query_arg( array( 'leagueflow_path', 'leagueflow_team', 'leagueflow_notice' ), $this->get_portal_url() ) );
 
 		if ( empty( $sports ) ) {
-			return '';
+			return $this->render_panel(
+				__( 'No additional sports available', 'leagueflow' ),
+				'<p>' . esc_html__( 'You already manage, play in, or have a pending request for every available sport.', 'leagueflow' ) . '</p><a class="leagueflow-portal__button leagueflow-portal__button--secondary" href="' . esc_url( remove_query_arg( 'leagueflow_path', $this->get_portal_url() ) ) . '">' . esc_html__( 'Back to my teams', 'leagueflow' ) . '</a>'
+			);
 		}
 
 		ob_start();
 		?>
-		<section class="leagueflow-portal__panel">
+		<section class="leagueflow-portal__panel leagueflow-portal__panel--wide leagueflow-portal__panel--setup">
 			<div class="leagueflow-portal__panel-head">
 				<div>
 					<p class="leagueflow-portal__eyebrow"><?php esc_html_e( 'Captain', 'leagueflow' ); ?></p>
-					<h2><?php esc_html_e( 'Register a Team', 'leagueflow' ); ?></h2>
+					<h2><?php echo esc_html( empty( $manager_teams ) ? __( 'Set Up Your Team', 'leagueflow' ) : __( 'Create Another Team', 'leagueflow' ) ); ?></h2>
 				</div>
 			</div>
 
-			<form class="leagueflow-portal__form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-				<?php echo $this->render_hidden_fields( 'create_team' ); ?>
-				<label>
-					<span><?php esc_html_e( 'Captain name', 'leagueflow' ); ?></span>
-					<input type="text" name="lf_captain_name" value="<?php echo esc_attr( $name ); ?>" autocomplete="name" required />
-				</label>
-				<label>
-					<span><?php esc_html_e( 'Sport', 'leagueflow' ); ?></span>
-					<select name="lf_sport_slug" required>
-						<option value=""><?php esc_html_e( 'Choose a sport', 'leagueflow' ); ?></option>
-						<?php foreach ( $sports as $sport_slug => $sport ) : ?>
-							<option value="<?php echo esc_attr( $sport_slug ); ?>"><?php echo esc_html( $sport['label'] ); ?></option>
-						<?php endforeach; ?>
-					</select>
-				</label>
-				<label>
-					<span><?php esc_html_e( 'League level', 'leagueflow' ); ?></span>
-					<select name="lf_league_level_id" required>
-						<?php foreach ( $this->get_league_level_terms() as $level ) : ?>
-							<option value="<?php echo esc_attr( (string) $level->term_id ); ?>"><?php echo esc_html( $level->name ); ?></option>
-						<?php endforeach; ?>
-					</select>
-				</label>
-				<label>
-					<span><?php esc_html_e( 'Team name', 'leagueflow' ); ?></span>
-					<input type="text" name="lf_team_name" required />
-				</label>
-				<label>
-					<span><?php esc_html_e( 'Short name', 'leagueflow' ); ?></span>
-					<input type="text" name="lf_short_name" />
-				</label>
-				<label>
-					<span><?php esc_html_e( 'Team description', 'leagueflow' ); ?></span>
-					<textarea name="lf_team_description" rows="4"></textarea>
-				</label>
-				<button type="submit"><?php esc_html_e( 'Register team', 'leagueflow' ); ?></button>
+			<?php if ( $is_repeat ) : ?>
+				<div class="leagueflow-portal__captain-identity">
+					<?php echo wp_kses_post( get_post_image( $player_id, 'thumbnail', 'leagueflow-portal__avatar' ) ); ?>
+					<div class="leagueflow-portal__summary">
+						<span><strong><?php esc_html_e( 'Captain', 'leagueflow' ); ?></strong><?php echo esc_html( $name ); ?></span>
+						<span><strong><?php esc_html_e( 'Verified email', 'leagueflow' ); ?></strong><?php echo esc_html( $user->user_email ); ?></span>
+						<span><strong><?php esc_html_e( 'Teams managed', 'leagueflow' ); ?></strong><?php echo esc_html( (string) count( $manager_teams ) ); ?></span>
+					</div>
+					<a href="<?php echo esc_url( $profile_url ); ?>"><?php esc_html_e( 'Edit player profile', 'leagueflow' ); ?></a>
+				</div>
+			<?php endif; ?>
+
+			<form class="leagueflow-portal__form leagueflow-portal__onboarding" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" enctype="multipart/form-data" data-leagueflow-onboarding data-onboarding-kind="captain" data-verified-email="<?php echo esc_attr( $user->user_email ); ?>">
+				<?php echo $this->render_hidden_fields( 'complete_captain_onboarding' ); ?>
+				<input type="hidden" name="lf_captain_onboarding_mode" value="<?php echo $is_repeat ? 'repeat' : 'initial'; ?>" />
+				<?php if ( $is_repeat ) : ?><input type="hidden" name="lf_captain_name" value="<?php echo esc_attr( $name ); ?>" /><?php endif; ?>
+				<?php echo $this->render_onboarding_progress( $is_repeat ? array( __( 'Team', 'leagueflow' ), __( 'Review', 'leagueflow' ) ) : array( __( 'Profile', 'leagueflow' ), __( 'Team', 'leagueflow' ), __( 'Review', 'leagueflow' ) ) ); ?>
+
+				<?php if ( ! $is_repeat ) : ?>
+					<fieldset class="leagueflow-portal__onboarding-step" data-leagueflow-step="1">
+						<legend class="screen-reader-text"><?php esc_html_e( 'Step 1: Captain profile', 'leagueflow' ); ?></legend>
+						<div class="leagueflow-portal__summary">
+							<span><strong><?php esc_html_e( 'Verified email', 'leagueflow' ); ?></strong><?php echo esc_html( $user->user_email ); ?></span>
+						</div>
+						<label>
+							<span><?php esc_html_e( 'Full name', 'leagueflow' ); ?></span>
+							<input type="text" name="lf_captain_name" value="<?php echo esc_attr( $name ); ?>" autocomplete="name" required data-review-label="<?php echo esc_attr__( 'Captain', 'leagueflow' ); ?>" />
+						</label>
+						<label>
+							<span><?php esc_html_e( 'Profile photo (optional)', 'leagueflow' ); ?></span>
+							<input type="file" name="lf_player_photo" accept="image/jpeg,image/png,image/gif,image/webp" data-review-label="<?php echo esc_attr__( 'Profile photo', 'leagueflow' ); ?>" />
+						</label>
+						<label>
+							<span><?php esc_html_e( 'Short bio (optional)', 'leagueflow' ); ?></span>
+							<textarea name="lf_player_description" rows="4" data-review-label="<?php echo esc_attr__( 'Bio', 'leagueflow' ); ?>"><?php echo esc_textarea( $player_description ); ?></textarea>
+						</label>
+						<div class="leagueflow-portal__step-actions"><button type="button" data-leagueflow-step-next><?php esc_html_e( 'Continue', 'leagueflow' ); ?></button></div>
+					</fieldset>
+				<?php endif; ?>
+
+				<fieldset class="leagueflow-portal__onboarding-step" data-leagueflow-step="<?php echo esc_attr( (string) $team_step ); ?>">
+					<legend class="screen-reader-text"><?php echo esc_html( sprintf( __( 'Step %1$d: Team', 'leagueflow' ), $team_step ) ); ?></legend>
+					<div class="leagueflow-portal__form-grid leagueflow-portal__form-grid--even">
+						<label>
+							<span><?php esc_html_e( 'Sport', 'leagueflow' ); ?></span>
+							<select name="lf_sport_slug" required data-review-label="<?php echo esc_attr__( 'Sport', 'leagueflow' ); ?>">
+								<option value=""><?php esc_html_e( 'Choose a sport', 'leagueflow' ); ?></option>
+								<?php foreach ( $sports as $sport_slug => $sport ) : ?>
+									<option value="<?php echo esc_attr( $sport_slug ); ?>" <?php selected( $draft_sport, $sport_slug ); ?>><?php echo esc_html( $sport['label'] ); ?></option>
+								<?php endforeach; ?>
+							</select>
+						</label>
+						<label>
+							<span><?php esc_html_e( 'League level', 'leagueflow' ); ?></span>
+							<select name="lf_league_level_id" required data-review-label="<?php echo esc_attr__( 'Level', 'leagueflow' ); ?>">
+								<option value=""><?php esc_html_e( 'Choose a level', 'leagueflow' ); ?></option>
+								<?php foreach ( $this->get_league_level_terms() as $level ) : ?>
+									<option value="<?php echo esc_attr( (string) $level->term_id ); ?>" <?php selected( $draft_level, (int) $level->term_id ); ?>><?php echo esc_html( $level->name ); ?></option>
+								<?php endforeach; ?>
+							</select>
+						</label>
+					</div>
+					<label>
+						<span><?php esc_html_e( 'Team name', 'leagueflow' ); ?></span>
+						<input type="text" name="lf_team_name" value="<?php echo esc_attr( $draft_team ); ?>" required data-review-label="<?php echo esc_attr__( 'Team', 'leagueflow' ); ?>" />
+					</label>
+					<div class="leagueflow-portal__form-grid leagueflow-portal__form-grid--even">
+						<label>
+							<span><?php esc_html_e( 'Short name (optional)', 'leagueflow' ); ?></span>
+							<input type="text" name="lf_short_name" value="<?php echo esc_attr( $draft_short ); ?>" data-review-label="<?php echo esc_attr__( 'Short name', 'leagueflow' ); ?>" />
+						</label>
+						<label>
+							<span><?php esc_html_e( 'Team logo (optional)', 'leagueflow' ); ?></span>
+							<input type="file" name="lf_team_logo" accept="image/jpeg,image/png,image/gif,image/webp" data-review-label="<?php echo esc_attr__( 'Team logo', 'leagueflow' ); ?>" />
+						</label>
+					</div>
+					<label>
+						<span><?php esc_html_e( 'Team description (optional)', 'leagueflow' ); ?></span>
+					<textarea name="lf_team_description" rows="4" data-review-label="<?php echo esc_attr__( 'Team description', 'leagueflow' ); ?>"><?php echo esc_textarea( $draft_team_description ); ?></textarea>
+					</label>
+					<div class="leagueflow-portal__step-actions">
+						<?php if ( ! $is_repeat ) : ?><button type="button" class="leagueflow-portal__button--secondary" data-leagueflow-step-back><?php esc_html_e( 'Back', 'leagueflow' ); ?></button><?php endif; ?>
+						<button type="button" data-leagueflow-step-next><?php esc_html_e( 'Review', 'leagueflow' ); ?></button>
+					</div>
+				</fieldset>
+
+				<fieldset class="leagueflow-portal__onboarding-step" data-leagueflow-step="<?php echo esc_attr( (string) $review_step ); ?>">
+					<legend class="screen-reader-text"><?php echo esc_html( sprintf( __( 'Step %1$d: Review', 'leagueflow' ), $review_step ) ); ?></legend>
+					<h3><?php esc_html_e( 'Review your team', 'leagueflow' ); ?></h3>
+					<div class="leagueflow-portal__review" data-leagueflow-onboarding-review><ul data-leagueflow-review-list></ul></div>
+					<div class="leagueflow-portal__step-actions">
+						<button type="button" class="leagueflow-portal__button--secondary" data-leagueflow-step-back><?php esc_html_e( 'Back', 'leagueflow' ); ?></button>
+						<button type="submit"><?php echo esc_html( empty( $manager_teams ) ? __( 'Create team and finish', 'leagueflow' ) : __( 'Create team', 'leagueflow' ) ); ?></button>
+					</div>
+				</fieldset>
 			</form>
 		</section>
+		<?php
+		return (string) ob_get_clean();
+	}
+
+	/**
+	 * Render the accessible three-step onboarding progress indicator.
+	 *
+	 * @param array<int, string> $labels Step labels.
+	 * @return string
+	 */
+	protected function render_onboarding_progress( $labels ) {
+		ob_start();
+		?>
+		<ol class="leagueflow-portal__stepper" aria-label="<?php echo esc_attr__( 'Setup progress', 'leagueflow' ); ?>">
+			<?php foreach ( $labels as $index => $label ) : ?>
+				<li<?php echo 0 === $index ? ' class="is-current" aria-current="step"' : ''; ?> data-leagueflow-step-indicator="<?php echo esc_attr( (string) ( $index + 1 ) ); ?>">
+					<span><?php echo esc_html( (string) ( $index + 1 ) ); ?></span>
+					<strong><?php echo esc_html( $label ); ?></strong>
+				</li>
+			<?php endforeach; ?>
+		</ol>
 		<?php
 		return (string) ob_get_clean();
 	}
@@ -686,14 +1176,18 @@ class Portal {
 	 * Render a manager team workspace.
 	 *
 	 * @param \WP_Post $team Team.
+	 * @param int      $player_id Linked player ID.
 	 * @return string
 	 */
-	protected function render_manager_team( $team ) {
+	protected function render_manager_team( $team, $player_id = 0 ) {
 		$team_id    = (int) $team->ID;
 		$team_logo  = get_post_image( $team_id, 'medium', 'leagueflow-portal__team-logo' );
-		$players    = $this->get_team_player_posts( $team_id );
+		$players    = get_team_roster_player_posts( $team_id );
 		$short_name = (string) get_post_meta( $team_id, 'lf_short_name', true );
 		$requests   = $this->get_team_join_requests( $team_id );
+		$sport      = $this->get_sport_label( get_post_primary_term_slug( $team_id, 'lf_sport' ) );
+		$level      = get_post_league_level_label( $team_id );
+		$detail     = $player_id && player_has_team( $player_id, $team_id ) ? get_player_team_detail( $player_id, $team_id ) : null;
 
 		ob_start();
 		?>
@@ -705,6 +1199,11 @@ class Portal {
 				<div>
 					<h3><?php echo esc_html( get_the_title( $team ) ); ?></h3>
 					<?php if ( ! empty( $short_name ) ) : ?><p><?php echo esc_html( $short_name ); ?></p><?php endif; ?>
+					<p class="leagueflow-portal-team__meta"><?php echo esc_html( $sport ); ?> <span aria-hidden="true">/</span> <?php echo esc_html( $level ? $level : __( 'Level not specified', 'leagueflow' ) ); ?></p>
+					<div class="leagueflow-portal__role-badges">
+						<span><?php esc_html_e( 'Manager', 'leagueflow' ); ?></span>
+						<?php if ( is_array( $detail ) ) : ?><span><?php echo ! empty( $detail['is_captain'] ) ? esc_html__( 'Playing captain', 'leagueflow' ) : esc_html__( 'Player', 'leagueflow' ); ?></span><?php endif; ?>
+					</div>
 				</div>
 			</header>
 
@@ -817,6 +1316,7 @@ class Portal {
 		$player = get_post( $player_id );
 		$player_name = $player instanceof \WP_Post ? $player->post_title : get_the_title( $player_id );
 		$team_select_id  = 'leagueflow-team-select-' . absint( $player_id );
+		$level_select_id = 'leagueflow-level-select-' . absint( $player_id );
 		$request_help_id = 'leagueflow-request-help-' . absint( $player_id );
 
 		ob_start();
@@ -827,12 +1327,12 @@ class Portal {
 				<?php
 				printf(
 					/* translators: %s: current player profile name. */
-					esc_html__( 'Requesting as %s. Choose a sport first, then pick a team or ask to be placed on one.', 'leagueflow' ),
+					esc_html__( 'Requesting as %s. Choose a sport and level, then pick a team or ask staff to place you.', 'leagueflow' ),
 					esc_html( $player_name )
 				);
 				?>
 			</p>
-			<div class="leagueflow-portal__form-grid leagueflow-portal__form-grid--even">
+			<div class="leagueflow-portal__form-grid leagueflow-portal__form-grid--three">
 				<label>
 					<span><?php esc_html_e( 'Sport', 'leagueflow' ); ?></span>
 					<select name="lf_sport_slug" required data-leagueflow-sport-select data-team-target="<?php echo esc_attr( $team_select_id ); ?>" aria-describedby="<?php echo esc_attr( $request_help_id ); ?>">
@@ -843,13 +1343,22 @@ class Portal {
 					</select>
 				</label>
 				<label>
+					<span><?php esc_html_e( 'Level', 'leagueflow' ); ?></span>
+					<select id="<?php echo esc_attr( $level_select_id ); ?>" name="lf_league_level_id" required disabled data-leagueflow-level-select aria-describedby="<?php echo esc_attr( $request_help_id ); ?>">
+						<option value=""><?php esc_html_e( 'Choose a level', 'leagueflow' ); ?></option>
+						<?php foreach ( $this->get_league_level_terms() as $level ) : ?>
+							<option value="<?php echo esc_attr( (string) $level->term_id ); ?>"><?php echo esc_html( $level->name ); ?></option>
+						<?php endforeach; ?>
+					</select>
+				</label>
+				<label>
 					<span><?php esc_html_e( 'Team', 'leagueflow' ); ?></span>
 					<select id="<?php echo esc_attr( $team_select_id ); ?>" name="lf_team_id" required data-leagueflow-team-select aria-describedby="<?php echo esc_attr( $request_help_id ); ?>">
 						<option value=""><?php esc_html_e( 'Choose a sport first', 'leagueflow' ); ?></option>
 						<option value="0" data-placement-option hidden disabled><?php esc_html_e( "I don't have a team yet - please place me", 'leagueflow' ); ?></option>
 						<?php foreach ( $sport_groups as $sport_slug => $group ) : ?>
 							<?php foreach ( $group['teams'] as $team ) : ?>
-								<option value="<?php echo esc_attr( (string) $team->ID ); ?>" data-sport="<?php echo esc_attr( $sport_slug ); ?>"><?php echo esc_html( get_the_title( $team ) ); ?></option>
+								<option value="<?php echo esc_attr( (string) $team->ID ); ?>" data-sport="<?php echo esc_attr( $sport_slug ); ?>" data-level-id="<?php echo esc_attr( (string) get_post_primary_term_id( $team->ID, 'lf_league_level' ) ); ?>"><?php echo esc_html( get_the_title( $team ) ); ?></option>
 							<?php endforeach; ?>
 						<?php endforeach; ?>
 					</select>
@@ -887,6 +1396,8 @@ class Portal {
 				$team_id    = (int) get_post_meta( $request->ID, 'lf_team_id', true );
 				$sport_slug = sanitize_key( (string) get_post_meta( $request->ID, 'lf_sport_slug', true ) );
 				$status     = sanitize_key( (string) get_post_meta( $request->ID, 'lf_request_status', true ) );
+				$level_id   = get_join_request_level_id( $request->ID );
+				$level      = $level_id ? get_term( $level_id, 'lf_league_level' ) : null;
 				$status     = $status ? $status : 'pending';
 				$label      = $team_id ? get_the_title( $team_id ) : sprintf(
 					/* translators: %s: sport label. */
@@ -897,7 +1408,7 @@ class Portal {
 				<article class="leagueflow-portal-request">
 					<div>
 						<strong><?php echo esc_html( $label ); ?></strong>
-						<span><?php echo esc_html( ucfirst( $status ) ); ?></span>
+						<span><?php echo esc_html( ucfirst( $status ) ); ?><?php echo $level && ! is_wp_error( $level ) ? ' - ' . esc_html( $level->name ) : ''; ?></span>
 					</div>
 				</article>
 			<?php endforeach; ?>
@@ -970,6 +1481,7 @@ class Portal {
 	 */
 	protected function render_roster_player_form( $team_id, $player ) {
 		$player_id = (int) $player->ID;
+		$detail    = get_player_team_detail( $player_id, $team_id );
 
 		ob_start();
 		?>
@@ -989,16 +1501,16 @@ class Portal {
 				<div class="leagueflow-portal__form-grid">
 					<label>
 						<span><?php esc_html_e( 'No.', 'leagueflow' ); ?></span>
-						<input type="number" min="0" name="lf_jersey_number" value="<?php echo esc_attr( (string) get_post_meta( $player_id, 'lf_jersey_number', true ) ); ?>" />
+						<input type="number" min="0" name="lf_jersey_number" value="<?php echo esc_attr( (string) $detail['jersey_number'] ); ?>" />
 					</label>
 					<label>
 						<span><?php esc_html_e( 'Position', 'leagueflow' ); ?></span>
-						<input type="text" name="lf_position" value="<?php echo esc_attr( (string) get_post_meta( $player_id, 'lf_position', true ) ); ?>" />
+						<input type="text" name="lf_position" value="<?php echo esc_attr( (string) $detail['position'] ); ?>" />
 					</label>
 				</div>
 				<div class="leagueflow-portal-roster__actions">
 					<label class="leagueflow-portal__checkbox">
-						<input type="checkbox" name="lf_is_captain" value="1" <?php checked( (bool) get_post_meta( $player_id, 'lf_is_captain', true ) ); ?> />
+						<input type="checkbox" name="lf_is_captain" value="1" <?php checked( ! empty( $detail['is_captain'] ) ); ?> />
 						<span><?php esc_html_e( 'Captain', 'leagueflow' ); ?></span>
 					</label>
 					<button type="submit"><?php esc_html_e( 'Save', 'leagueflow' ); ?></button>
@@ -1013,6 +1525,190 @@ class Portal {
 		</div>
 		<?php
 		return (string) ob_get_clean();
+	}
+
+	/**
+	 * Complete first-time player setup and create one request per new sport.
+	 *
+	 * @param \WP_User $user Current user.
+	 * @return void
+	 */
+	protected function handle_complete_player_onboarding( $user ) {
+		$existing_player_id = $this->get_player_id_for_user( $user, false );
+		$player_window_open = is_player_registration_enabled();
+
+		if ( ! $player_window_open && ! $existing_player_id ) {
+			$this->redirect_with_notice( 'registration-closed' );
+		}
+
+		if ( ! $existing_player_id && ! $this->user_can_begin_registration( $user ) ) {
+			$this->redirect_with_notice( 'registration-email-denied' );
+		}
+
+		$player_id = $existing_player_id;
+		$player    = $player_id ? get_post( $player_id ) : null;
+
+		if ( $player_id && ( ! $player instanceof \WP_Post || 'lf_player' !== $player->post_type ) ) {
+			$this->redirect_with_notice( 'player-missing' );
+		}
+
+		$name        = sanitize_text_field( wp_unslash( $_POST['lf_player_name'] ?? '' ) );
+		$description = wp_kses_post( wp_unslash( $_POST['lf_player_description'] ?? '' ) );
+		$preferences = $this->sanitize_player_sport_level_submission(
+			$_POST['lf_player_sports'] ?? array(),
+			$_POST['lf_player_sport_levels'] ?? array()
+		);
+		$submitted_levels = isset( $_POST['lf_player_sport_levels'] ) && is_array( $_POST['lf_player_sport_levels'] ) ? $_POST['lf_player_sport_levels'] : array();
+		$choices     = isset( $_POST['lf_player_team_choices'] ) && is_array( $_POST['lf_player_team_choices'] ) ? wp_unslash( $_POST['lf_player_team_choices'] ) : array();
+		$notes       = isset( $_POST['lf_player_request_notes'] ) && is_array( $_POST['lf_player_request_notes'] ) ? wp_unslash( $_POST['lf_player_request_notes'] ) : array();
+
+		if ( '' === $name || $this->is_placeholder_player_name( $name, $user ) ) {
+			$this->redirect_with_notice( 'name-setup-required' );
+		}
+
+		if ( empty( $preferences ) ) {
+			$this->redirect_with_notice( 'sport-level-required' );
+		}
+
+		foreach ( $preferences as $sport_slug => $level_id ) {
+			$submitted_level_id = isset( $submitted_levels[ $sport_slug ] ) && ! is_array( $submitted_levels[ $sport_slug ] ) ? absint( wp_unslash( $submitted_levels[ $sport_slug ] ) ) : 0;
+
+			if ( $submitted_level_id !== absint( $level_id ) ) {
+				$this->redirect_with_notice( 'invalid-request' );
+			}
+		}
+
+		$states   = $player_id ? $this->get_player_registration_states( $player_id ) : array();
+		$requests = array();
+
+		foreach ( $preferences as $sport_slug => $level_id ) {
+			$state = $states[ $sport_slug ] ?? array();
+
+			if ( ! empty( $state['team_id'] ) || ! empty( $state['request_id'] ) ) {
+				if ( ! empty( $state['level_id'] ) ) {
+					$preferences[ $sport_slug ] = absint( $state['level_id'] );
+				}
+				continue;
+			}
+
+			$choice = isset( $choices[ $sport_slug ] ) && ! is_array( $choices[ $sport_slug ] ) ? sanitize_text_field( (string) $choices[ $sport_slug ] ) : '';
+			$note   = isset( $notes[ $sport_slug ] ) && ! is_array( $notes[ $sport_slug ] ) ? sanitize_textarea_field( (string) $notes[ $sport_slug ] ) : '';
+
+			if ( '' === $choice || ( $player_id && $this->find_pending_join_request_for_sport( $player_id, $sport_slug ) ) || $this->player_has_team_in_sport( $player_id, $sport_slug ) ) {
+				$this->redirect_with_notice( 'sport-request-required' );
+			}
+
+			$is_placement = '0' === $choice;
+			$team_id      = absint( $choice );
+
+			if ( ! $is_placement ) {
+				$team = get_post( $team_id );
+
+				if (
+					! $team instanceof \WP_Post ||
+					'lf_team' !== $team->post_type ||
+					'publish' !== $team->post_status ||
+					get_post_primary_term_slug( $team_id, 'lf_sport' ) !== $sport_slug ||
+					get_post_primary_term_id( $team_id, 'lf_league_level' ) !== absint( $level_id )
+				) {
+					$this->redirect_with_notice( 'team-level-mismatch' );
+				}
+			}
+
+			$requests[] = array(
+				'sport_slug'  => $sport_slug,
+				'level_id'    => absint( $level_id ),
+				'team_id'     => $is_placement ? 0 : $team_id,
+				'is_placement' => $is_placement,
+				'note'        => $note,
+			);
+		}
+
+		if ( ! $player_window_open && ! empty( $requests ) ) {
+			$this->redirect_with_notice( 'registration-closed' );
+		}
+
+		$snapshot      = $player_id ? $this->snapshot_player_profile( $player_id ) : array();
+		$is_new_player = ! $player_id;
+
+		if ( $is_new_player ) {
+			$player_id = wp_insert_post(
+				array(
+					'post_type'    => 'lf_player',
+					'post_status'  => 'publish',
+					'post_title'   => $name,
+					'post_content' => $description,
+					'post_author'  => (int) $user->ID,
+				),
+				true
+			);
+
+			if ( is_wp_error( $player_id ) || ! $player_id ) {
+				$this->redirect_with_notice( 'onboarding-save-error' );
+			}
+
+			update_post_meta( $player_id, 'lf_user_id', (int) $user->ID );
+			update_post_meta( $player_id, 'lf_email', strtolower( sanitize_email( $user->user_email ) ) );
+		} else {
+			$updated = wp_update_post(
+				array(
+					'ID'           => $player_id,
+					'post_title'   => $name,
+					'post_content' => $description,
+				),
+				true
+			);
+
+			if ( is_wp_error( $updated ) ) {
+				$this->redirect_with_notice( 'onboarding-save-error' );
+			}
+		}
+
+		$this->save_player_sport_level_preferences( $player_id, $preferences );
+		$attachment_id = $this->save_uploaded_image( 'lf_player_photo', $player_id );
+
+		if ( is_wp_error( $attachment_id ) ) {
+			if ( $is_new_player ) {
+				wp_delete_post( $player_id, true );
+			} else {
+				$this->restore_player_profile( $player_id, $snapshot );
+			}
+			$this->redirect_with_notice( 'upload-error' );
+		}
+
+		$created_requests = array();
+
+		foreach ( $requests as $request_data ) {
+			$request_id = $this->create_join_request( $user, $player_id, $name, $request_data );
+
+			if ( is_wp_error( $request_id ) ) {
+				foreach ( $created_requests as $created_request_id ) {
+					wp_delete_post( $created_request_id, true );
+				}
+
+				if ( $attachment_id ) {
+					wp_delete_attachment( $attachment_id, true );
+				}
+
+				if ( $is_new_player ) {
+					wp_delete_post( $player_id, true );
+				} else {
+					$this->restore_player_profile( $player_id, $snapshot );
+				}
+				$this->redirect_with_notice( 'onboarding-save-error' );
+			}
+
+			$created_requests[] = absint( $request_id );
+		}
+
+		$this->sync_user_display_name( $user, $name );
+		add_user_role_if_missing( $user->ID, 'leagueflow_player' );
+
+		foreach ( $created_requests as $request_id ) {
+			$this->notify_new_join_request( $request_id );
+		}
+
+		$this->redirect_with_notice( 'player-onboarding-complete' );
 	}
 
 	/**
@@ -1097,8 +1793,10 @@ class Portal {
 		$note          = sanitize_textarea_field( wp_unslash( $_POST['lf_request_note'] ?? '' ) );
 		$player        = get_post( $player_id );
 		$name          = $player instanceof \WP_Post ? $player->post_title : '';
+		$level_id      = absint( wp_unslash( $_POST['lf_league_level_id'] ?? 0 ) );
+		$level         = $level_id ? get_term( $level_id, 'lf_league_level' ) : null;
 
-		if ( '' === trim( (string) $name ) || '' === $sport_slug || ( '' === $team_id_value || ( ! $team_id && ! $is_placement ) ) ) {
+		if ( '' === trim( (string) $name ) || '' === $sport_slug || ! $level || is_wp_error( $level ) || ( '' === $team_id_value || ( ! $team_id && ! $is_placement ) ) ) {
 			$this->redirect_with_notice( 'invalid-request' );
 		}
 
@@ -1115,7 +1813,7 @@ class Portal {
 		} else {
 			$team = get_post( $team_id );
 
-			if ( ! $team instanceof \WP_Post || 'lf_team' !== $team->post_type ) {
+			if ( ! $team instanceof \WP_Post || 'lf_team' !== $team->post_type || 'publish' !== $team->post_status ) {
 				$this->redirect_with_notice( 'invalid-request' );
 			}
 
@@ -1125,25 +1823,68 @@ class Portal {
 				$this->redirect_with_notice( 'invalid-request' );
 			}
 
+			if ( get_post_primary_term_id( $team_id, 'lf_league_level' ) !== $level_id ) {
+				$this->redirect_with_notice( 'team-level-mismatch' );
+			}
+
 			if ( player_has_team( $player_id, $team_id ) ) {
 				$this->redirect_with_notice( 'join-request-member' );
 			}
+
 		}
 
-		if ( $this->find_pending_join_request( $player_id, $team_id, $sport_slug ) ) {
+		if ( $this->find_pending_join_request_for_sport( $player_id, $sport_slug ) ) {
 			$this->redirect_with_notice( $is_placement ? 'placement-request-exists' : 'join-request-exists' );
 		}
 
+		$request_id = $this->create_join_request(
+			$user,
+			$player_id,
+			$name,
+			array(
+				'sport_slug'   => $sport_slug,
+				'level_id'     => $level_id,
+				'team_id'      => $is_placement ? 0 : $team_id,
+				'is_placement' => $is_placement,
+				'note'         => $note,
+			)
+		);
+
+		if ( is_wp_error( $request_id ) || ! $request_id ) {
+			$this->redirect_with_notice( 'invalid-request' );
+		}
+
+		$this->notify_new_join_request( $request_id );
+
+		$this->redirect_with_notice( $is_placement ? 'placement-request-sent' : 'join-request-sent' );
+	}
+
+	/**
+	 * Create a validated team or placement request.
+	 *
+	 * @param \WP_User             $user User.
+	 * @param int                  $player_id Player ID.
+	 * @param string               $name Player name.
+	 * @param array<string, mixed> $data Request data.
+	 * @return int|\WP_Error
+	 */
+	protected function create_join_request( $user, $player_id, $name, $data ) {
+		$sport_slug  = sanitize_key( $data['sport_slug'] ?? '' );
+		$level_id    = absint( $data['level_id'] ?? 0 );
+		$team_id     = absint( $data['team_id'] ?? 0 );
+		$is_placement = ! empty( $data['is_placement'] );
+		$note         = sanitize_textarea_field( $data['note'] ?? '' );
+
 		if ( $is_placement ) {
 			$title = sprintf(
-				/* translators: 1: player name 2: sport label */
+				/* translators: 1: player name 2: sport label. */
 				__( '%1$s needs a %2$s team', 'leagueflow' ),
 				$name,
 				$this->get_sport_label( $sport_slug )
 			);
 		} else {
 			$title = sprintf(
-				/* translators: 1: player name 2: team name */
+				/* translators: 1: player name 2: team name. */
 				__( '%1$s requested %2$s', 'leagueflow' ),
 				$name,
 				get_the_title( $team_id )
@@ -1160,18 +1901,85 @@ class Portal {
 		);
 
 		if ( is_wp_error( $request_id ) || ! $request_id ) {
-			$this->redirect_with_notice( 'invalid-request' );
+			return is_wp_error( $request_id ) ? $request_id : new \WP_Error( 'leagueflow_request_create_failed', __( 'The team request could not be created.', 'leagueflow' ) );
 		}
 
-		update_post_meta( $request_id, 'lf_player_id', $player_id );
+		update_post_meta( $request_id, 'lf_player_id', absint( $player_id ) );
 		update_post_meta( $request_id, 'lf_user_id', (int) $user->ID );
 		update_post_meta( $request_id, 'lf_team_id', $is_placement ? 0 : $team_id );
+		update_post_meta( $request_id, 'lf_league_level_id', $level_id );
 		update_post_meta( $request_id, 'lf_sport_slug', $sport_slug );
 		update_post_meta( $request_id, 'lf_request_status', 'pending' );
 		update_post_meta( $request_id, 'lf_request_note', $note );
 		update_post_meta( $request_id, 'lf_request_type', $is_placement ? 'placement' : 'team' );
 
-		$this->redirect_with_notice( $is_placement ? 'placement-request-sent' : 'join-request-sent' );
+		return absint( $request_id );
+	}
+
+	/**
+	 * Notify the responsible people about a new request.
+	 *
+	 * @param int $request_id Join request ID.
+	 * @return void
+	 */
+	protected function notify_new_join_request( $request_id ) {
+		$player_id   = absint( get_post_meta( $request_id, 'lf_player_id', true ) );
+		$team_id     = absint( get_post_meta( $request_id, 'lf_team_id', true ) );
+		$sport_slug  = sanitize_key( (string) get_post_meta( $request_id, 'lf_sport_slug', true ) );
+		$level_id    = get_join_request_level_id( $request_id );
+		$level       = $level_id ? get_term( $level_id, 'lf_league_level' ) : null;
+		$note        = (string) get_post_meta( $request_id, 'lf_request_note', true );
+		$player_name = get_the_title( $player_id );
+		$player_email = (string) get_post_meta( $player_id, 'lf_email', true );
+		$is_placement = ! $team_id;
+		$recipients   = $is_placement ? get_registration_email() : get_team_manager_emails( $team_id );
+		$subject      = $is_placement
+			? sprintf( __( '[UNBC Intramurals] New %s placement request', 'leagueflow' ), $this->get_sport_label( $sport_slug ) )
+			: sprintf( __( '[UNBC Intramurals] New request for %s', 'leagueflow' ), get_the_title( $team_id ) );
+		$destination = $is_placement ? admin_url( 'admin.php?page=leagueflow-placements' ) : $this->get_portal_url();
+		$message      = implode(
+			"\n",
+			array_filter(
+				array(
+					sprintf( __( 'Player: %s', 'leagueflow' ), $player_name ),
+					is_email( $player_email ) ? sprintf( __( 'Email: %s', 'leagueflow' ), $player_email ) : '',
+					sprintf( __( 'Sport: %s', 'leagueflow' ), $this->get_sport_label( $sport_slug ) ),
+					$level && ! is_wp_error( $level ) ? sprintf( __( 'Level: %s', 'leagueflow' ), $level->name ) : __( 'Level: Not specified', 'leagueflow' ),
+					$note ? sprintf( __( 'Note: %s', 'leagueflow' ), $note ) : '',
+					'',
+					__( 'Review the request:', 'leagueflow' ) . ' ' . $destination,
+				)
+			)
+		);
+
+		send_registration_email( $recipients, $subject, $message );
+	}
+
+	/**
+	 * Notify a player when a captain approves or declines a request.
+	 *
+	 * @param int    $request_id Request ID.
+	 * @param string $decision approved or declined.
+	 * @param int    $team_id Team ID.
+	 * @return void
+	 */
+	protected function notify_player_request_decision( $request_id, $decision, $team_id ) {
+		$player_id = absint( get_post_meta( $request_id, 'lf_player_id', true ) );
+		$email     = sanitize_email( (string) get_post_meta( $player_id, 'lf_email', true ) );
+
+		if ( ! is_email( $email ) ) {
+			return;
+		}
+
+		$approved = 'approved' === $decision;
+		$subject  = $approved
+			? sprintf( __( '[UNBC Intramurals] You joined %s', 'leagueflow' ), get_the_title( $team_id ) )
+			: sprintf( __( '[UNBC Intramurals] Update from %s', 'leagueflow' ), get_the_title( $team_id ) );
+		$message  = $approved
+			? sprintf( __( 'Your request was approved and you are now on %1$s. View your portal: %2$s', 'leagueflow' ), get_the_title( $team_id ), $this->get_portal_url() )
+			: sprintf( __( 'Your request to join %1$s was declined. You can choose another team from your portal: %2$s', 'leagueflow' ), get_the_title( $team_id ), $this->get_portal_url() );
+
+		send_registration_email( $email, $subject, $message );
 	}
 
 	/**
@@ -1180,9 +1988,27 @@ class Portal {
 	 * @param \WP_User $user Current user.
 	 * @return void
 	 */
-	protected function handle_create_team( $user ) {
+	protected function handle_complete_captain_onboarding( $user ) {
 		if ( ! is_captain_registration_enabled() ) {
 			$this->redirect_with_notice( 'registration-closed' );
+		}
+
+		$existing_player_id = $this->get_player_id_for_user( $user, false );
+		$manager_teams      = $this->get_manager_teams( $user->ID );
+		$is_repeat          = ! empty( $manager_teams );
+		$existing_player    = $existing_player_id ? get_post( $existing_player_id ) : null;
+		$preserve_profile   = $is_repeat && $existing_player instanceof \WP_Post;
+		$had_player_role    = in_array( 'leagueflow_player', (array) $user->roles, true );
+		$user_snapshot      = array(
+			'ID'           => (int) $user->ID,
+			'display_name' => (string) $user->display_name,
+			'nickname'     => (string) $user->nickname,
+			'first_name'   => (string) $user->first_name,
+			'last_name'    => (string) $user->last_name,
+		);
+
+		if ( ! $existing_player_id && empty( $manager_teams ) && ! $this->user_can_begin_registration( $user ) ) {
+			$this->redirect_with_notice( 'registration-email-denied' );
 		}
 
 		$sports_manager = new Sports_Manager();
@@ -1190,18 +2016,29 @@ class Portal {
 		$level_id       = absint( wp_unslash( $_POST['lf_league_level_id'] ?? 0 ) );
 		$team_name      = sanitize_text_field( wp_unslash( $_POST['lf_team_name'] ?? '' ) );
 		$short_name     = sanitize_text_field( wp_unslash( $_POST['lf_short_name'] ?? '' ) );
-		$captain_name   = sanitize_text_field( wp_unslash( $_POST['lf_captain_name'] ?? '' ) );
-		$description    = wp_kses_post( wp_unslash( $_POST['lf_team_description'] ?? '' ) );
+		$captain_name   = $preserve_profile ? $existing_player->post_title : sanitize_text_field( wp_unslash( $_POST['lf_captain_name'] ?? '' ) );
+		$team_description = wp_kses_post( wp_unslash( $_POST['lf_team_description'] ?? '' ) );
+		$player_description = $preserve_profile ? $existing_player->post_content : wp_kses_post( wp_unslash( $_POST['lf_player_description'] ?? '' ) );
 		$enabled_sports = $sports_manager->get_enabled_sport_slugs();
 
-		if ( '' === $sport_slug || ! in_array( $sport_slug, $enabled_sports, true ) || '' === $team_name || '' === $captain_name ) {
+		if ( '' === $sport_slug || ! in_array( $sport_slug, $enabled_sports, true ) || '' === $team_name || '' === $captain_name || $this->is_placeholder_player_name( $captain_name, $user ) ) {
 			$this->redirect_with_notice( 'invalid-request' );
 		}
 
 		$level = $level_id ? get_term( $level_id, 'lf_league_level' ) : null;
 
 		if ( ! $level || is_wp_error( $level ) ) {
-			$level_id = $this->get_default_league_level_id();
+			$this->redirect_with_notice( 'invalid-request' );
+		}
+
+		foreach ( $manager_teams as $managed_team ) {
+			if ( get_post_primary_term_slug( $managed_team->ID, 'lf_sport' ) === $sport_slug ) {
+				$this->redirect_with_notice( 'captain-sport-exists' );
+			}
+		}
+
+		if ( $existing_player_id && ( $this->player_has_team_in_sport( $existing_player_id, $sport_slug ) || $this->find_pending_join_request_for_sport( $existing_player_id, $sport_slug ) ) ) {
+			$this->redirect_with_notice( 'player-sport-exists' );
 		}
 
 		$duplicate_team_id = $this->find_team_id_by_title_and_sport( $team_name, $sport_slug );
@@ -1215,14 +2052,14 @@ class Portal {
 				'post_type'    => 'lf_team',
 				'post_status'  => 'publish',
 				'post_title'   => $team_name,
-				'post_content' => $description,
+				'post_content' => $team_description,
 				'post_author'  => (int) $user->ID,
 			),
 			true
 		);
 
 		if ( is_wp_error( $team_id ) || ! $team_id ) {
-			$this->redirect_with_notice( 'invalid-request' );
+			$this->redirect_with_notice( 'onboarding-save-error' );
 		}
 
 		update_post_meta( $team_id, 'lf_short_name', $short_name );
@@ -1238,17 +2075,86 @@ class Portal {
 			wp_set_object_terms( $team_id, array( $level_id ), 'lf_league_level', false );
 		}
 
-		add_user_role_if_missing( $user->ID, 'leagueflow_team_manager' );
-
+		$player_snapshot = $existing_player_id ? $this->snapshot_player_profile( $existing_player_id ) : array();
 		$captain_id = $this->get_or_create_captain_player_id( $user, $captain_name );
 
-		if ( $captain_id ) {
-			add_player_team_id( $captain_id, (int) $team_id );
-			update_post_meta( $captain_id, 'lf_is_captain', 1 );
-			$this->assign_player_sport_from_team( $captain_id, (int) $team_id );
+		if ( ! $captain_id ) {
+			wp_delete_post( $team_id, true );
+			$this->redirect_with_notice( 'onboarding-save-error' );
 		}
 
-		$this->redirect_with_notice( 'team-registered' );
+		if ( ! $preserve_profile ) {
+			wp_update_post(
+				array(
+					'ID'           => $captain_id,
+					'post_content' => $player_description,
+				)
+			);
+		}
+
+		if ( ! assign_player_to_team( $captain_id, (int) $team_id, array( 'is_captain' => 1 ) ) ) {
+			wp_delete_post( $team_id, true );
+
+			if ( $existing_player_id ) {
+				$this->restore_player_profile( $existing_player_id, $player_snapshot );
+			} else {
+				wp_delete_post( $captain_id, true );
+
+				if ( ! $had_player_role ) {
+					$rollback_user = get_user_by( 'id', $user->ID );
+					if ( $rollback_user instanceof \WP_User ) {
+						$rollback_user->remove_role( 'leagueflow_player' );
+					}
+				}
+			}
+
+			wp_update_user( $user_snapshot );
+
+			$this->redirect_with_notice( 'onboarding-save-error' );
+		}
+
+		$player_attachment_id = $preserve_profile ? 0 : $this->save_uploaded_image( 'lf_player_photo', $captain_id );
+		$team_attachment_id   = $this->save_uploaded_image( 'lf_team_logo', $team_id );
+
+		if ( is_wp_error( $player_attachment_id ) || is_wp_error( $team_attachment_id ) ) {
+			if ( is_int( $player_attachment_id ) && $player_attachment_id ) {
+				wp_delete_attachment( $player_attachment_id, true );
+			}
+
+			if ( is_int( $team_attachment_id ) && $team_attachment_id ) {
+				wp_delete_attachment( $team_attachment_id, true );
+			}
+
+			wp_delete_post( $team_id, true );
+
+			if ( $existing_player_id ) {
+				$this->restore_player_profile( $existing_player_id, $player_snapshot );
+			} else {
+				wp_delete_post( $captain_id, true );
+
+				if ( ! $had_player_role ) {
+					$rollback_user = get_user_by( 'id', $user->ID );
+					if ( $rollback_user instanceof \WP_User ) {
+						$rollback_user->remove_role( 'leagueflow_player' );
+					}
+				}
+			}
+
+			wp_update_user( $user_snapshot );
+
+			$this->redirect_with_notice( 'upload-error' );
+		}
+
+		add_user_role_if_missing( $user->ID, 'leagueflow_team_manager' );
+
+		$this->redirect_with_notice(
+			'team-registered',
+			array(
+				'leagueflow_view' => 'teams',
+				'leagueflow_team' => (int) $team_id,
+			),
+			'team-workspace'
+		);
 	}
 
 	/**
@@ -1273,7 +2179,7 @@ class Portal {
 		$player_id            = (int) get_post_meta( $request_id, 'lf_player_id', true );
 		$status               = sanitize_key( (string) get_post_meta( $request_id, 'lf_request_status', true ) );
 
-		if ( 'pending' !== $status || ! $team_id || ! $player_id || ! $this->user_can_manage_team( $team_id, $user->ID ) ) {
+		if ( $is_placement_request || 'pending' !== $status || ! $team_id || ! $player_id || ! $this->user_can_manage_team( $team_id, $user->ID ) ) {
 			$this->redirect_with_notice( 'team-denied' );
 		}
 
@@ -1281,28 +2187,37 @@ class Portal {
 			$this->redirect_with_notice( 'team-denied' );
 		}
 
-		if ( $is_placement_request ) {
-			$request_sport_slug = sanitize_key( (string) get_post_meta( $request_id, 'lf_sport_slug', true ) );
+		$team_sport_slug    = get_post_primary_term_slug( $team_id, 'lf_sport' );
+		$request_sport_slug = sanitize_key( (string) get_post_meta( $request_id, 'lf_sport_slug', true ) );
+		$request_sport_slug = $request_sport_slug ? $request_sport_slug : $team_sport_slug;
+		$request_level_id   = get_join_request_level_id( $request_id );
 
-			if ( '' === $request_sport_slug || get_post_primary_term_slug( $team_id, 'lf_sport' ) !== $request_sport_slug ) {
-				$this->redirect_with_notice( 'team-denied' );
-			}
-
-			if ( 'decline' === $decision ) {
-				$this->redirect_with_notice( 'invalid-request' );
-			}
+		if (
+			'' === $team_sport_slug ||
+			$request_sport_slug !== $team_sport_slug ||
+			( $request_level_id && $request_level_id !== get_post_primary_term_id( $team_id, 'lf_league_level' ) )
+		) {
+			$this->redirect_with_notice( 'team-denied' );
 		}
 
 		if ( 'approve' === $decision ) {
-			add_player_team_id( $player_id, $team_id );
-			$this->assign_player_sport_from_team( $player_id, $team_id );
+			if ( $this->player_has_other_team_in_sport( $player_id, $request_sport_slug, $team_id ) ) {
+				$this->redirect_with_notice( 'player-assigned' );
+			}
+
+			if ( ! assign_player_to_team( $player_id, $team_id ) ) {
+				$this->redirect_with_notice( 'invalid-request' );
+			}
+
 			update_post_meta( $request_id, 'lf_request_status', 'approved' );
 			update_post_meta( $request_id, 'lf_team_id', $team_id );
+			$this->notify_player_request_decision( $request_id, 'approved', $team_id );
 			$this->redirect_with_notice( 'join-request-approved' );
 		}
 
 		if ( 'decline' === $decision ) {
 			update_post_meta( $request_id, 'lf_request_status', 'declined' );
+			$this->notify_player_request_decision( $request_id, 'declined', $team_id );
 			$this->redirect_with_notice( 'join-request-declined' );
 		}
 
@@ -1396,6 +2311,12 @@ class Portal {
 			$this->redirect_with_notice( 'invalid-request' );
 		}
 
+		$team_sport_slug = get_post_primary_term_slug( $team_id, 'lf_sport' );
+
+		if ( $this->player_has_other_team_in_sport( $player_id, $team_sport_slug, $team_id ) ) {
+			$this->redirect_with_notice( 'player-assigned' );
+		}
+
 		$this->save_roster_player_fields( absint( $player_id ), $team_id, $email, $name );
 		$this->redirect_with_notice( 'player-added' );
 	}
@@ -1440,7 +2361,6 @@ class Portal {
 		}
 
 		remove_player_team_id( $player_id, $team_id );
-		update_post_meta( $player_id, 'lf_is_captain', 0 );
 		$this->redirect_with_notice( 'player-removed' );
 	}
 
@@ -1463,10 +2383,15 @@ class Portal {
 			);
 		}
 
-		add_player_team_id( $player_id, $team_id );
-		update_post_meta( $player_id, 'lf_jersey_number', absint( wp_unslash( $_POST['lf_jersey_number'] ?? 0 ) ) );
-		update_post_meta( $player_id, 'lf_position', sanitize_text_field( wp_unslash( $_POST['lf_position'] ?? '' ) ) );
-		update_post_meta( $player_id, 'lf_is_captain', ! empty( $_POST['lf_is_captain'] ) ? 1 : 0 );
+		assign_player_to_team(
+			$player_id,
+			$team_id,
+			array(
+				'jersey_number' => sanitize_text_field( wp_unslash( $_POST['lf_jersey_number'] ?? '' ) ),
+				'position'      => sanitize_text_field( wp_unslash( $_POST['lf_position'] ?? '' ) ),
+				'is_captain'    => ! empty( $_POST['lf_is_captain'] ) ? 1 : 0,
+			)
+		);
 
 		if ( '' !== $email ) {
 			update_post_meta( $player_id, 'lf_email', $email );
@@ -1492,12 +2417,27 @@ class Portal {
 	 * @return void
 	 */
 	protected function maybe_save_uploaded_image( $field, $post_id ) {
+		$result = $this->save_uploaded_image( $field, $post_id );
+
+		if ( is_wp_error( $result ) ) {
+			$this->redirect_with_notice( 'upload-error' );
+		}
+	}
+
+	/**
+	 * Save an optional uploaded image and return the attachment or an error.
+	 *
+	 * @param string $field File input field.
+	 * @param int    $post_id Post ID.
+	 * @return int|\WP_Error
+	 */
+	protected function save_uploaded_image( $field, $post_id ) {
 		if ( empty( $_FILES[ $field ] ) || UPLOAD_ERR_NO_FILE === (int) $_FILES[ $field ]['error'] ) {
-			return;
+			return 0;
 		}
 
 		if ( UPLOAD_ERR_OK !== (int) $_FILES[ $field ]['error'] ) {
-			$this->redirect_with_notice( 'upload-error' );
+			return new \WP_Error( 'leagueflow_upload_error', __( 'The uploaded image could not be read.', 'leagueflow' ) );
 		}
 
 		require_once ABSPATH . 'wp-admin/includes/file.php';
@@ -1520,10 +2460,72 @@ class Portal {
 		);
 
 		if ( is_wp_error( $attachment_id ) ) {
-			$this->redirect_with_notice( 'upload-error' );
+			return $attachment_id;
 		}
 
 		set_post_thumbnail( $post_id, absint( $attachment_id ) );
+
+		return absint( $attachment_id );
+	}
+
+	/**
+	 * Snapshot profile values that onboarding may change.
+	 *
+	 * @param int $player_id Player ID.
+	 * @return array<string, mixed>
+	 */
+	protected function snapshot_player_profile( $player_id ) {
+		$player = get_post( absint( $player_id ) );
+
+		return array(
+			'title'        => $player instanceof \WP_Post ? $player->post_title : '',
+			'content'      => $player instanceof \WP_Post ? $player->post_content : '',
+			'sport_terms'  => wp_get_object_terms( absint( $player_id ), 'lf_sport', array( 'fields' => 'ids' ) ),
+			'level_terms'  => wp_get_object_terms( absint( $player_id ), 'lf_league_level', array( 'fields' => 'ids' ) ),
+			'preferences'  => get_post_meta( absint( $player_id ), 'lf_player_sport_levels', true ),
+			'team_ids'      => get_player_team_ids( absint( $player_id ) ),
+			'team_details'  => get_player_team_details( absint( $player_id ) ),
+			'is_captain'    => (int) get_post_meta( absint( $player_id ), 'lf_is_captain', true ),
+			'thumbnail_id' => get_post_thumbnail_id( absint( $player_id ) ),
+		);
+	}
+
+	/**
+	 * Restore profile values after a failed combined onboarding submission.
+	 *
+	 * @param int                  $player_id Player ID.
+	 * @param array<string, mixed> $snapshot Snapshot from snapshot_player_profile().
+	 * @return void
+	 */
+	protected function restore_player_profile( $player_id, $snapshot ) {
+		wp_update_post(
+			array(
+				'ID'           => absint( $player_id ),
+				'post_title'   => (string) ( $snapshot['title'] ?? '' ),
+				'post_content' => (string) ( $snapshot['content'] ?? '' ),
+			)
+		);
+
+		$sport_terms = isset( $snapshot['sport_terms'] ) && is_array( $snapshot['sport_terms'] ) ? array_map( 'absint', $snapshot['sport_terms'] ) : array();
+		$level_terms = isset( $snapshot['level_terms'] ) && is_array( $snapshot['level_terms'] ) ? array_map( 'absint', $snapshot['level_terms'] ) : array();
+		wp_set_object_terms( absint( $player_id ), $sport_terms, 'lf_sport', false );
+		wp_set_object_terms( absint( $player_id ), $level_terms, 'lf_league_level', false );
+
+		if ( isset( $snapshot['preferences'] ) && is_array( $snapshot['preferences'] ) ) {
+			update_post_meta( absint( $player_id ), 'lf_player_sport_levels', $snapshot['preferences'] );
+		} else {
+			delete_post_meta( absint( $player_id ), 'lf_player_sport_levels' );
+		}
+
+		set_player_team_ids( absint( $player_id ), isset( $snapshot['team_ids'] ) && is_array( $snapshot['team_ids'] ) ? $snapshot['team_ids'] : array() );
+		update_post_meta( absint( $player_id ), 'lf_player_team_details', sanitize_player_team_details( $snapshot['team_details'] ?? array() ) );
+		sync_player_legacy_team_meta( absint( $player_id ) );
+
+		if ( ! empty( $snapshot['thumbnail_id'] ) ) {
+			set_post_thumbnail( absint( $player_id ), absint( $snapshot['thumbnail_id'] ) );
+		} else {
+			delete_post_thumbnail( absint( $player_id ) );
+		}
 	}
 
 	/**
@@ -2022,11 +3024,15 @@ class Portal {
 			return true;
 		}
 
-		if ( is_captain_registration_enabled() ) {
+		if ( ! empty( $manager_teams ) ) {
 			return true;
 		}
 
-		return ! empty( $manager_teams );
+		if ( is_captain_registration_enabled() || is_player_registration_enabled() ) {
+			return $this->user_can_begin_registration( $user );
+		}
+
+		return false;
 	}
 
 	/**
@@ -2073,6 +3079,56 @@ class Portal {
 	}
 
 	/**
+	 * Get sports in which the current user can still create and join a team.
+	 *
+	 * @param int                   $player_id Linked player ID.
+	 * @param array<int, \WP_Post> $manager_teams Teams managed by the user.
+	 * @return array<string, array<string, mixed>>
+	 */
+	protected function get_eligible_captain_sports( $player_id, $manager_teams ) {
+		$sports  = ( new Sports_Manager() )->get_enabled_sports();
+		$blocked = array();
+
+		foreach ( $manager_teams as $team ) {
+			$sport_slug = get_post_primary_term_slug( $team->ID, 'lf_sport' );
+
+			if ( $sport_slug ) {
+				$blocked[ $sport_slug ] = true;
+			}
+		}
+
+		if ( $player_id ) {
+			foreach ( array_keys( $this->get_player_registration_states( $player_id ) ) as $sport_slug ) {
+				$blocked[ sanitize_key( $sport_slug ) ] = true;
+			}
+		}
+
+		foreach ( array_keys( $blocked ) as $sport_slug ) {
+			unset( $sports[ $sport_slug ] );
+		}
+
+		return $sports;
+	}
+
+	/**
+	 * Resolve a managed team selected for the focused workspace.
+	 *
+	 * @param array<int, \WP_Post> $teams Managed teams.
+	 * @return int
+	 */
+	protected function get_requested_manager_team_id( $teams ) {
+		$requested = absint( wp_unslash( $_GET['leagueflow_team'] ?? 0 ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+
+		foreach ( $teams as $team ) {
+			if ( $team instanceof \WP_Post && (int) $team->ID === $requested ) {
+				return $requested;
+			}
+		}
+
+		return 0;
+	}
+
+	/**
 	 * Get teams managed by a user.
 	 *
 	 * @param int $user_id User ID.
@@ -2110,27 +3166,7 @@ class Portal {
 	 * @return array<int, \WP_Post>
 	 */
 	protected function get_team_player_posts( $team_id ) {
-		$team_id = absint( $team_id );
-
-		return array_values(
-			array_filter(
-				get_posts(
-					array(
-						'post_type'      => 'lf_player',
-						'post_status'    => array( 'publish', 'draft', 'pending', 'future', 'private' ),
-						'posts_per_page' => -1,
-						'orderby'        => array(
-							'meta_value_num' => 'ASC',
-							'title'          => 'ASC',
-						),
-						'meta_key'       => 'lf_jersey_number',
-					)
-				),
-				static function( $player ) use ( $team_id ) {
-					return player_has_team( $player->ID, $team_id );
-				}
-			)
-		);
+		return get_team_roster_player_posts( absint( $team_id ) );
 	}
 
 	/**
@@ -2224,6 +3260,31 @@ class Portal {
 	}
 
 	/**
+	 * Check whether a player belongs to another team in the same sport.
+	 *
+	 * @param int    $player_id Player ID.
+	 * @param string $sport_slug Sport slug.
+	 * @param int    $excluded_team_id Team that may be retained.
+	 * @return bool
+	 */
+	protected function player_has_other_team_in_sport( $player_id, $sport_slug, $excluded_team_id = 0 ) {
+		$sport_slug      = sanitize_key( $sport_slug );
+		$excluded_team_id = absint( $excluded_team_id );
+
+		if ( ! $player_id || '' === $sport_slug ) {
+			return false;
+		}
+
+		foreach ( get_player_team_ids( absint( $player_id ) ) as $team_id ) {
+			if ( absint( $team_id ) !== $excluded_team_id && get_post_primary_term_slug( $team_id, 'lf_sport' ) === $sport_slug ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
 	 * Get a display label for a sport slug.
 	 *
 	 * @param string $sport_slug Sport slug.
@@ -2255,7 +3316,7 @@ class Portal {
 			$teams = get_posts(
 				array(
 					'post_type'      => 'lf_team',
-					'post_status'    => array( 'publish', 'draft', 'pending', 'future', 'private' ),
+					'post_status'    => 'publish',
 					'posts_per_page' => -1,
 					'orderby'        => 'title',
 					'order'          => 'ASC',
@@ -2276,6 +3337,69 @@ class Portal {
 		}
 
 		return $groups;
+	}
+
+	/**
+	 * Resolve existing team memberships and pending requests by sport.
+	 *
+	 * @param int $player_id Player ID.
+	 * @return array<string, array<string, mixed>>
+	 */
+	protected function get_player_registration_states( $player_id ) {
+		$states = array();
+
+		foreach ( get_player_team_ids( absint( $player_id ) ) as $team_id ) {
+			$sport_slug = get_post_primary_term_slug( $team_id, 'lf_sport' );
+
+			if ( ! $sport_slug || isset( $states[ $sport_slug ] ) ) {
+				continue;
+			}
+
+			$states[ $sport_slug ] = array(
+				'team_id'    => absint( $team_id ),
+				'team_name'  => get_the_title( $team_id ),
+				'level_id'   => get_post_primary_term_id( $team_id, 'lf_league_level' ),
+				'request_id' => 0,
+			);
+		}
+
+		$requests = get_posts(
+			array(
+				'post_type'      => 'lf_join_request',
+				'post_status'    => array( 'private', 'publish', 'draft', 'pending' ),
+				'posts_per_page' => -1,
+				'orderby'        => 'date',
+				'order'          => 'ASC',
+				'meta_query'     => array(
+					array(
+						'key'   => 'lf_player_id',
+						'value' => absint( $player_id ),
+					),
+					array(
+						'key'   => 'lf_request_status',
+						'value' => 'pending',
+					),
+				),
+			)
+		);
+
+		foreach ( $requests as $request ) {
+			$sport_slug = sanitize_key( (string) get_post_meta( $request->ID, 'lf_sport_slug', true ) );
+
+			if ( ! $sport_slug || isset( $states[ $sport_slug ] ) ) {
+				continue;
+			}
+
+			$team_id = absint( get_post_meta( $request->ID, 'lf_team_id', true ) );
+			$states[ $sport_slug ] = array(
+				'team_id'    => 0,
+				'team_name'  => $team_id ? get_the_title( $team_id ) : '',
+				'level_id'   => get_join_request_level_id( $request->ID ),
+				'request_id' => (int) $request->ID,
+			);
+		}
+
+		return $states;
 	}
 
 	/**
@@ -2451,34 +3575,7 @@ class Portal {
 	 * @return array<int, \WP_Post>
 	 */
 	protected function get_team_join_requests( $team_id ) {
-		$team_id    = absint( $team_id );
-		$sport_slug = get_post_primary_term_slug( $team_id, 'lf_sport' );
-		$request_query = array(
-			'key'     => 'lf_team_id',
-			'value'   => $team_id,
-			'compare' => '=',
-			'type'    => 'NUMERIC',
-		);
-
-		if ( $sport_slug ) {
-			$request_query = array(
-				'relation' => 'OR',
-				$request_query,
-				array(
-					'relation' => 'AND',
-					array(
-						'key'     => 'lf_team_id',
-						'value'   => 0,
-						'compare' => '=',
-						'type'    => 'NUMERIC',
-					),
-					array(
-						'key'   => 'lf_sport_slug',
-						'value' => $sport_slug,
-					),
-				),
-			);
-		}
+		$team_id = absint( $team_id );
 
 		return get_posts(
 			array(
@@ -2493,10 +3590,49 @@ class Portal {
 						'key'   => 'lf_request_status',
 						'value' => 'pending',
 					),
-					$request_query,
+					array(
+						'key'     => 'lf_team_id',
+						'value'   => $team_id,
+						'compare' => '=',
+						'type'    => 'NUMERIC',
+					),
 				),
 			)
 		);
+	}
+
+	/**
+	 * Find a player's pending request in a sport, regardless of destination.
+	 *
+	 * @param int    $player_id Player ID.
+	 * @param string $sport_slug Sport slug.
+	 * @return int
+	 */
+	protected function find_pending_join_request_for_sport( $player_id, $sport_slug ) {
+		$requests = get_posts(
+			array(
+				'post_type'      => 'lf_join_request',
+				'post_status'    => array( 'private', 'publish', 'draft', 'pending' ),
+				'posts_per_page' => 1,
+				'fields'         => 'ids',
+				'meta_query'     => array(
+					array(
+						'key'   => 'lf_player_id',
+						'value' => absint( $player_id ),
+					),
+					array(
+						'key'   => 'lf_sport_slug',
+						'value' => sanitize_key( $sport_slug ),
+					),
+					array(
+						'key'   => 'lf_request_status',
+						'value' => 'pending',
+					),
+				),
+			)
+		);
+
+		return empty( $requests ) ? 0 : absint( $requests[0] );
 	}
 
 	/**
@@ -2837,6 +3973,89 @@ class Portal {
 	}
 
 	/**
+	 * Store non-file onboarding fields across a validation redirect.
+	 *
+	 * @param string $kind captain or player.
+	 * @return void
+	 */
+	protected function store_onboarding_draft( $kind ) {
+		$kind = sanitize_key( $kind );
+
+		if ( ! in_array( $kind, array( 'captain', 'player' ), true ) || ! get_current_user_id() ) {
+			return;
+		}
+
+		if ( 'captain' === $kind ) {
+			$draft = array(
+				'name'               => sanitize_text_field( wp_unslash( $_POST['lf_captain_name'] ?? '' ) ),
+				'player_description' => wp_kses_post( wp_unslash( $_POST['lf_player_description'] ?? '' ) ),
+				'sport_slug'         => sanitize_key( wp_unslash( $_POST['lf_sport_slug'] ?? '' ) ),
+				'level_id'           => absint( wp_unslash( $_POST['lf_league_level_id'] ?? 0 ) ),
+				'team_name'          => sanitize_text_field( wp_unslash( $_POST['lf_team_name'] ?? '' ) ),
+				'short_name'         => sanitize_text_field( wp_unslash( $_POST['lf_short_name'] ?? '' ) ),
+				'team_description'   => wp_kses_post( wp_unslash( $_POST['lf_team_description'] ?? '' ) ),
+			);
+		} else {
+			$sports = array();
+			$levels = array();
+			$choices = array();
+			$notes = array();
+
+			foreach ( (array) wp_unslash( $_POST['lf_player_sports'] ?? array() ) as $sport_slug ) {
+				if ( ! is_array( $sport_slug ) ) {
+					$sports[] = sanitize_key( $sport_slug );
+				}
+			}
+
+			foreach ( (array) wp_unslash( $_POST['lf_player_sport_levels'] ?? array() ) as $sport_slug => $level_id ) {
+				if ( ! is_array( $level_id ) ) {
+					$levels[ sanitize_key( $sport_slug ) ] = absint( $level_id );
+				}
+			}
+
+			foreach ( (array) wp_unslash( $_POST['lf_player_team_choices'] ?? array() ) as $sport_slug => $choice ) {
+				if ( ! is_array( $choice ) ) {
+					$choices[ sanitize_key( $sport_slug ) ] = sanitize_text_field( $choice );
+				}
+			}
+
+			foreach ( (array) wp_unslash( $_POST['lf_player_request_notes'] ?? array() ) as $sport_slug => $note ) {
+				if ( ! is_array( $note ) ) {
+					$notes[ sanitize_key( $sport_slug ) ] = sanitize_textarea_field( $note );
+				}
+			}
+			$draft = array(
+				'name'        => sanitize_text_field( wp_unslash( $_POST['lf_player_name'] ?? '' ) ),
+				'description' => wp_kses_post( wp_unslash( $_POST['lf_player_description'] ?? '' ) ),
+				'sports'      => array_values( array_filter( $sports ) ),
+				'levels'      => $levels,
+				'choices'     => $choices,
+				'notes'       => $notes,
+			);
+		}
+
+		set_transient( 'leagueflow_onboarding_draft_' . get_current_user_id() . '_' . $kind, $draft, 10 * MINUTE_IN_SECONDS );
+	}
+
+	/**
+	 * Consume a user-scoped onboarding draft after a validation redirect.
+	 *
+	 * @param string $kind captain or player.
+	 * @return array<string, mixed>
+	 */
+	protected function get_onboarding_draft( $kind ) {
+		$key   = 'leagueflow_onboarding_draft_' . get_current_user_id() . '_' . sanitize_key( $kind );
+		$draft = get_transient( $key );
+
+		if ( is_array( $draft ) ) {
+			delete_transient( $key );
+			return $draft;
+		}
+
+		return array();
+	}
+
+	/**
 	 * Render notice from query string.
 	 *
 	 * @return string
@@ -2851,9 +4070,12 @@ class Portal {
 		$messages = array(
 			'profile-saved'  => __( 'Profile saved.', 'leagueflow' ),
 			'profile-setup-complete' => __( 'Profile setup complete.', 'leagueflow' ),
+			'player-onboarding-complete' => __( 'Your profile is ready and your team requests were submitted.', 'leagueflow' ),
 			'team-saved'     => __( 'Team saved.', 'leagueflow' ),
 			'team-registered' => __( 'Team registered. You are assigned as the team manager and captain.', 'leagueflow' ),
 			'team-exists'    => __( 'A team with that name already exists for this sport.', 'leagueflow' ),
+			'captain-sport-exists' => __( 'You already manage a team in that sport.', 'leagueflow' ),
+			'player-sport-exists' => __( 'You already have a team or pending request in that sport.', 'leagueflow' ),
 			'player-added'   => __( 'Player added to the roster.', 'leagueflow' ),
 			'roster-saved'   => __( 'Roster player saved.', 'leagueflow' ),
 			'player-removed' => __( 'Player removed from the team.', 'leagueflow' ),
@@ -2873,6 +4095,10 @@ class Portal {
 			'player-missing' => __( 'No player profile is linked to your account.', 'leagueflow' ),
 			'name-setup-required' => __( 'Enter your full name before using the portal.', 'leagueflow' ),
 			'sport-level-required' => __( 'Choose at least one sport and level before using the portal.', 'leagueflow' ),
+			'sport-request-required' => __( 'Choose one team or staff placement for every new sport.', 'leagueflow' ),
+			'team-level-mismatch' => __( 'A selected team is no longer available at that sport and level. Review your choices.', 'leagueflow' ),
+			'registration-email-denied' => __( 'New registrations require a verified UNBC email address.', 'leagueflow' ),
+			'onboarding-save-error' => __( 'Your registration could not be saved. No partial requests were kept.', 'leagueflow' ),
 			'registration-closed' => __( 'That registration window is currently closed.', 'leagueflow' ),
 			'upload-error'   => __( 'The image upload failed. Please try another image.', 'leagueflow' ),
 			'invalid-request' => __( 'The portal request could not be verified.', 'leagueflow' ),
@@ -2882,7 +4108,7 @@ class Portal {
 			return '';
 		}
 
-		$type = in_array( $notice, array( 'invalid-email', 'access-denied', 'team-denied', 'team-exists', 'player-missing', 'player-assigned', 'join-request-exists', 'placement-request-exists', 'join-request-member', 'placement-request-member', 'name-setup-required', 'sport-level-required', 'registration-closed', 'upload-error', 'invalid-request' ), true ) ? 'error' : 'success';
+		$type = in_array( $notice, array( 'invalid-email', 'access-denied', 'team-denied', 'team-exists', 'captain-sport-exists', 'player-sport-exists', 'player-missing', 'player-assigned', 'join-request-exists', 'placement-request-exists', 'join-request-member', 'placement-request-member', 'name-setup-required', 'sport-level-required', 'sport-request-required', 'team-level-mismatch', 'registration-email-denied', 'onboarding-save-error', 'registration-closed', 'upload-error', 'invalid-request' ), true ) ? 'error' : 'success';
 
 		return sprintf(
 			'<div class="leagueflow-portal__notice leagueflow-portal__notice--%1$s">%2$s</div>',
@@ -2928,13 +4154,42 @@ class Portal {
 	/**
 	 * Redirect to the portal with a notice.
 	 *
-	 * @param string $notice Notice key.
+	 * @param string               $notice Notice key.
+	 * @param array<string, mixed> $args Additional query arguments.
+	 * @param string               $fragment Optional URL fragment without the hash.
 	 * @return void
 	 */
-	protected function redirect_with_notice( $notice ) {
+	protected function redirect_with_notice( $notice, $args = array(), $fragment = '' ) {
 		$redirect = esc_url_raw( wp_unslash( $_POST['leagueflow_redirect_to'] ?? $this->get_portal_url() ) );
-		$redirect = remove_query_arg( 'leagueflow_notice', $redirect );
+		$action   = sanitize_key( wp_unslash( $_POST['leagueflow_portal_action'] ?? '' ) );
+		$error_notices = array( 'invalid-request', 'name-setup-required', 'sport-level-required', 'sport-request-required', 'team-level-mismatch', 'team-exists', 'captain-sport-exists', 'player-sport-exists', 'registration-email-denied', 'onboarding-save-error', 'registration-closed', 'upload-error' );
+
+		if ( in_array( $notice, $error_notices, true ) ) {
+			if ( 'complete_captain_onboarding' === $action ) {
+				$this->store_onboarding_draft( 'captain' );
+			} elseif ( 'complete_player_onboarding' === $action ) {
+				$this->store_onboarding_draft( 'player' );
+			}
+		}
+
+		$redirect = remove_query_arg( array( 'leagueflow_notice', 'leagueflow_path' ), $redirect );
+
+		if ( 'complete_captain_onboarding' === $action && 'team-registered' !== $notice ) {
+			$redirect = add_query_arg( 'leagueflow_path', 'captain', $redirect );
+		} elseif ( 'complete_player_onboarding' === $action ) {
+			$redirect = add_query_arg( 'leagueflow_path', 'player', $redirect );
+		}
+
 		$redirect = add_query_arg( 'leagueflow_notice', sanitize_key( $notice ), $redirect );
+
+		if ( is_array( $args ) && ! empty( $args ) ) {
+			$redirect = add_query_arg( $args, $redirect );
+		}
+
+		$fragment = sanitize_title( $fragment );
+		if ( '' !== $fragment ) {
+			$redirect .= '#' . $fragment;
+		}
 
 		wp_safe_redirect( $redirect );
 		exit;
