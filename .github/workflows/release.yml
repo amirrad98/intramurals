@@ -1,0 +1,122 @@
+name: LeagueFlow checks and release
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: leagueflow-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  php:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.1', '8.2', '8.3', '8.4']
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: shivammathur/setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45 # v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          tools: none
+      - name: PHP syntax and updater tests
+        run: |
+          find includes templates -name '*.php' -print0 | xargs -0 -n1 php -l
+          php -l leagueflow.php
+          php -l uninstall.php
+          php tests/github-updater.php
+
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - name: Test deterministic builds and publication behavior
+        run: python3 -m unittest discover -s tests -p 'test_*.py' -v
+      - name: Build and validate version tag
+        env:
+          BUILD_REF_TYPE: ${{ github.ref_type }}
+          BUILD_REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [ "$BUILD_REF_TYPE" = tag ]; then
+            python3 scripts/build.py --tag "$BUILD_REF_NAME"
+          else
+            python3 scripts/build.py
+          fi
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: leagueflow-package
+          path: dist/*
+          if-no-files-found: error
+
+  wordpress:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        wordpress: ['6.5', 'latest']
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: wordpress-test-only
+          MYSQL_DATABASE: leagueflow_test
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: shivammathur/setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45 # v2
+        with:
+          php-version: '8.2'
+          extensions: mysqli, zip
+          coverage: none
+          tools: wp-cli
+      - name: Install disposable WordPress and exercise native updates
+        env:
+          WP_TEST_VERSION: ${{ matrix.wordpress }}
+        run: |
+          python3 scripts/build.py
+          wp_root="$RUNNER_TEMP/leagueflow-wordpress"
+          wp core download --version="$WP_TEST_VERSION" --path="$wp_root"
+          wp config create --path="$wp_root" --dbname=leagueflow_test --dbuser=root --dbpass=wordpress-test-only --dbhost=127.0.0.1:3306
+          wp config set FS_METHOD direct --path="$wp_root"
+          wp core install --path="$wp_root" --url=http://leagueflow.test --title=LeagueFlow --admin_user=admin --admin_password=disposable-test-only --admin_email=test@example.test --skip-email
+          export LEAGUEFLOW_TEST_PACKAGE="$GITHUB_WORKSPACE/dist/leagueflow-$(python3 -c 'from scripts.build import metadata,ROOT; print(metadata(ROOT)["version"])').zip"
+          wp plugin install "$LEAGUEFLOW_TEST_PACKAGE" --activate --path="$wp_root"
+          wp eval-file "$GITHUB_WORKSPACE/tests/wordpress-update.php" --path="$wp_root"
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [php, package, wordpress]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    concurrency:
+      group: leagueflow-release-publication
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Build verified tag and publish immutable release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python3 scripts/build.py --tag "$RELEASE_TAG"
+          python3 scripts/publish-release.py --tag "$RELEASE_TAG"

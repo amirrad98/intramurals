@@ -1,9 +1,12 @@
 <?php
 /**
  * Plugin Name: LeagueFlow
- * Plugin URI: https://example.com/leagueflow
+ * Plugin URI: https://github.com/amirrad98/intramurals
  * Description: Native WordPress soccer league management for teams, players, fixtures, standings, and knockout brackets.
- * Version: 1.0.1
+ * Version: 1.0.2
+ * Update URI: https://github.com/amirrad98/intramurals
+ * Requires at least: 6.5
+ * Requires PHP: 8.1
  * Author: 1stform
  * Text Domain: leagueflow
  * Domain Path: /languages
@@ -14,7 +17,7 @@
 defined( 'ABSPATH' ) || exit;
 
 if ( ! defined( 'LEAGUEFLOW_VERSION' ) ) {
-	define( 'LEAGUEFLOW_VERSION', '1.0.1' );
+	define( 'LEAGUEFLOW_VERSION', '1.0.2' );
 }
 
 if ( ! defined( 'LEAGUEFLOW_FILE' ) ) {
@@ -30,6 +33,7 @@ if ( ! defined( 'LEAGUEFLOW_URL' ) ) {
 }
 
 $leagueflow_files = array(
+	'includes/class-github-updater.php',
 	'includes/helpers.php',
 	'includes/class-sports-manager.php',
 	'includes/class-exporter.php',
@@ -58,6 +62,8 @@ $leagueflow_files = array(
 foreach ( $leagueflow_files as $leagueflow_file ) {
 	require_once LEAGUEFLOW_PATH . $leagueflow_file;
 }
+
+\LeagueFlow\GitHub_Updater::register();
 
 register_activation_hook( __FILE__, array( 'LeagueFlow\\Activator', 'activate' ) );
 

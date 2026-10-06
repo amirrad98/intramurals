@@ -2,6 +2,74 @@
 
 LeagueFlow is a classic WordPress plugin for running multi-sport leagues with teams, players, fixtures, derived standings, and knockout brackets. It uses WordPress-native admin screens, metaboxes, taxonomies, dynamic Gutenberg blocks, and shortcodes.
 
+## GitHub releases and WordPress updates
+
+Requires **WordPress 6.5+ and PHP 8.1+**. Download the attached
+`leagueflow-X.Y.Z.zip` from [GitHub Releases](https://github.com/amirrad98/intramurals/releases).
+Install it through **Plugins → Add New → Upload Plugin**. The package contains the
+stable `leagueflow/` directory. Use this asset rather than GitHub's generated source
+archives, which contain development tooling and have a different directory name.
+
+Sites running 1.0.1 or earlier must upload the updater-enabled 1.0.2 release once and
+replace the existing installation. While LeagueFlow is active, later stable releases
+appear through WordPress's normal plugin update checks. **Dashboard → Updates →
+Check again** requests a check; successful release metadata is cached for five
+minutes. A site does not need a GitHub token. Administrators choose when to install
+updates or enable WordPress's automatic updates. Updates replace plugin files;
+they do not uninstall LeagueFlow, migrate websites or replace league data.
+
+The updater uses the native `Update URI` hooks and the public release asset
+`releases/latest/download/latest.json`. It accepts stable versions only and verifies
+the downloaded ZIP against the specific version's manifest SHA-256. Failed checks
+are cached for one minute; an unavailable or invalid feed supplies no update. Keep
+the repository public and keep published assets immutable. Inactive plugins do not
+load their update hooks; activate LeagueFlow before checking for GitHub updates.
+
+The approach follows the deterministic packaging and verified-download design in
+[Zoer Connect](https://github.com/ahzs645/zoer-connect), with assets served directly
+from LeagueFlow's existing repository. No separate feed repository or deploy key is
+needed. HTTPS and checksums verify transport/integrity; they are not independent
+publisher signatures.
+
+### Build and release
+
+```sh
+php tests/github-updater.php
+python3 -m unittest discover -s tests -p 'test_*.py' -v
+python3 scripts/build.py
+```
+
+Outputs in ignored `dist/` are a deterministic plugin ZIP, `.zip.sha256` checksum
+and `latest.json` manifest. Packaging includes the plugin entry point, uninstall
+file, existing plugin documentation and runtime directories. It excludes Git,
+workflows, audit documents, scripts and tests; unsafe runtime entries fail.
+
+For a new stable release:
+
+1. Update the plugin header and `LEAGUEFLOW_VERSION` to the same new `X.Y.Z`.
+2. Add `releases/X.Y.Z.md` release notes, run the local checks, commit and push.
+3. Wait for branch CI: PHP 8.1–8.4, package/publication tests and native upgrade
+   integration on disposable WordPress 6.5 and current stable sites.
+4. Create an annotated matching tag (`git tag -a vX.Y.Z -m 'LeagueFlow X.Y.Z'`)
+   and push it (`git push origin vX.Y.Z`).
+
+The tag workflow repeats all checks before publishing. It creates a draft,
+verifies all three assets and then makes the release public. Reruns compare bytes
+and can finish incomplete drafts; they never overwrite different existing assets.
+An older release cannot displace a newer latest version. Prerelease/non-semantic
+tags fail validation and do not publish. Never move a published tag or replace its
+ZIP; increment the version instead. Branch and pull-request builds upload test
+artifacts but do not publish releases. No additional GitHub secrets are required.
+
+Native integration sets `LEAGUEFLOW_TEST_PACKAGE` to the built ZIP and runs
+`wp eval-file tests/wordpress-update.php` on an isolated
+`http://leagueflow.test` installation with MySQL, PHP 8.2, WP-CLI, `zip`, `mysqli`
+and the built plugin activated. Controlled HTTP fixtures exercise real WordPress
+update hooks and `Plugin_Upgrader`: both checksum rejection without file changes
+and a successful next-version installation preserving active status and stored
+data. Local isolated tests supplement this integration; they do not certify every
+host, theme or league workflow.
+
 ## Architecture
 
 - `lf_team`, `lf_player`, and `lf_match` are shared custom post types used across all sports.
