@@ -46,6 +46,9 @@ class Standings_Service {
 		$rows = array();
 
 		foreach ( $team_ids as $team_id ) {
+			if ( ! can_view_league_post( $team_id ) ) {
+				continue;
+			}
 			$rows[ $team_id ] = array(
 				'team_id'         => $team_id,
 				'name'            => get_the_title( $team_id ),
@@ -62,7 +65,7 @@ class Standings_Service {
 				'adjustment'      => 0,
 				'adjustment_note' => '',
 				'points'          => 0,
-				'permalink'       => get_permalink( $team_id ),
+				'permalink'       => team_profile_url( $team_id ),
 			);
 		}
 
@@ -195,7 +198,7 @@ class Standings_Service {
 	protected function get_finished_matches( $competition_id, $season_id, $sport_id, $league_level_id ) {
 		$args = array(
 			'post_type'      => 'lf_match',
-			'post_status'    => array( 'publish', 'future', 'draft', 'pending', 'private' ),
+			'post_status'    => frontend_post_statuses(),
 			'posts_per_page' => -1,
 			'orderby'        => 'meta_value',
 			'meta_key'       => 'lf_match_datetime',
@@ -246,7 +249,7 @@ class Standings_Service {
 			$args['tax_query'] = $tax_query;
 		}
 
-		return get_posts( $args );
+		return array_values( array_filter( get_posts( $args ), __NAMESPACE__ . '\\can_view_league_post' ) );
 	}
 
 	/**
@@ -261,7 +264,7 @@ class Standings_Service {
 	protected function get_context_team_ids( $competition_id, $season_id, $sport_id, $league_level_id ) {
 		$args = array(
 			'post_type'      => 'lf_team',
-			'post_status'    => array( 'publish', 'draft', 'pending', 'future', 'private' ),
+			'post_status'    => frontend_post_statuses(),
 			'posts_per_page' => -1,
 			'fields'         => 'ids',
 			'orderby'        => 'title',

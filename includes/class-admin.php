@@ -3081,6 +3081,13 @@ class Admin {
 	 * @return string
 	 */
 	public function handle_match_bulk_actions( $redirect_to, $doaction, $post_ids ) {
+		$post_ids = array_values( array_filter( array_unique( array_map( 'absint', (array) $post_ids ) ), static function( $post_id ) {
+			return 'lf_match' === get_post_type( $post_id ) && current_user_can( 'edit_post', $post_id );
+		} ) );
+		if ( empty( $post_ids ) ) {
+			return $redirect_to;
+		}
+
 		if ( 'leagueflow_auto_schedule' === $doaction ) {
 			$result = $this->field_availability_manager->schedule_matches(
 				array(

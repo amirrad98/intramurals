@@ -69,7 +69,7 @@ class Exporter {
 		fputcsv( $handle, $headers );
 
 		foreach ( $rows as $row ) {
-			fputcsv( $handle, $row );
+			fputcsv( $handle, array_map( array( $this, 'safe_csv_cell' ), $row ), ',', '"', '' );
 		}
 
 		rewind( $handle );
@@ -77,6 +77,15 @@ class Exporter {
 		fclose( $handle );
 
 		return false === $csv ? '' : $csv;
+	}
+
+	/** Keep untrusted spreadsheet-looking values as text in freshly exported CSV. */
+	protected function safe_csv_cell( $value ) {
+		$value = (string) $value;
+		if ( preg_match( '/^[\x00-\x20]*[=+\-@＝＋－＠]|^[\t\r\n]/u', $value ) ) {
+			return "'" . $value;
+		}
+		return $value;
 	}
 
 	/**

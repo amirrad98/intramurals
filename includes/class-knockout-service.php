@@ -63,7 +63,7 @@ class Knockout_Service {
 	 * @return array<int, array<string, mixed>>
 	 */
 	public function get_bracket( $competition_id = 0, $season_id = 0, $sport_id = 0, $league_level_id = 0 ) {
-		$matches = get_posts( $this->build_query_args( $competition_id, $season_id, $sport_id, $league_level_id ) );
+		$matches = array_values( array_filter( get_posts( $this->build_query_args( $competition_id, $season_id, $sport_id, $league_level_id ) ), __NAMESPACE__ . '\\can_view_league_post' ) );
 
 		usort(
 			$matches,
@@ -149,7 +149,7 @@ class Knockout_Service {
 	 * @return array{linked: bool, roots: array<int, array<string, mixed>>}
 	 */
 	public function get_bracket_tree( $competition_id = 0, $season_id = 0, $sport_id = 0, $league_level_id = 0 ) {
-		$matches = get_posts( $this->build_query_args( $competition_id, $season_id, $sport_id, $league_level_id ) );
+		$matches = array_values( array_filter( get_posts( $this->build_query_args( $competition_id, $season_id, $sport_id, $league_level_id ) ), __NAMESPACE__ . '\\can_view_league_post' ) );
 
 		if ( empty( $matches ) ) {
 			return array(
@@ -370,7 +370,7 @@ class Knockout_Service {
 	protected function build_query_args( $competition_id, $season_id, $sport_id, $league_level_id ) {
 		$args = array(
 			'post_type'      => 'lf_match',
-			'post_status'    => array( 'publish', 'future', 'draft', 'pending', 'private' ),
+			'post_status'    => frontend_post_statuses(),
 			'posts_per_page' => -1,
 			'meta_query'     => array(
 				array(

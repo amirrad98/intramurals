@@ -264,6 +264,7 @@ class Renderer {
 				'sport'            => '',
 				'league_level'     => '',
 				'status'           => '',
+				'period'           => '',
 				'limit'            => 20,
 				'include_knockout' => '',
 				'team'             => '',
@@ -279,6 +280,7 @@ class Renderer {
 				'sport'            => $atts['sport'],
 				'league_level'     => $atts['league_level'],
 				'status'           => $atts['status'],
+				'period'           => $atts['period'],
 				'limit'            => (int) $atts['limit'],
 				'include_knockout' => '' === $atts['include_knockout'] ? null : ! empty( $atts['include_knockout'] ),
 				'team'             => $atts['team'],
@@ -1113,7 +1115,7 @@ class Renderer {
 				'founded_year' => get_post_meta( $post->ID, 'lf_founded_year', true ),
 				'logo'         => get_post_image( $post->ID, 'medium', 'leagueflow-team-card__logo' ),
 				'description'  => has_excerpt( $post->ID ) ? get_the_excerpt( $post->ID ) : wp_trim_words( wp_strip_all_tags( $post->post_content ), 22 ),
-				'permalink'    => get_permalink( $post->ID ),
+				'permalink'    => team_profile_url( $post->ID ),
 				'sport'        => $this->sports_manager->get_post_sport_label( $post->ID ),
 				'league_level' => get_post_league_level_label( $post->ID ),
 			);
@@ -1179,7 +1181,7 @@ class Renderer {
 
 		$args = array(
 			'post_type'      => 'lf_calendar_event',
-			'post_status'    => array( 'publish', 'future', 'draft', 'pending', 'private' ),
+			'post_status'    => frontend_post_statuses(),
 			'posts_per_page' => $limit,
 			'orderby'        => 'meta_value',
 			'meta_key'       => 'lf_event_start_datetime',
@@ -1265,6 +1267,7 @@ class Renderer {
 			'sport'            => 0,
 			'league_level'     => 0,
 			'status'           => '',
+			'period'           => '',
 			'limit'            => 20,
 			'include_knockout' => null,
 			'team'             => 0,
@@ -1282,7 +1285,7 @@ class Renderer {
 
 		$args = array(
 			'post_type'      => 'lf_match',
-			'post_status'    => array( 'publish', 'future', 'draft', 'pending', 'private' ),
+			'post_status'    => frontend_post_statuses(),
 			'posts_per_page' => $limit,
 			'orderby'        => 'meta_value',
 			'meta_key'       => 'lf_match_datetime',
@@ -1296,6 +1299,27 @@ class Renderer {
 			$meta_query[] = array(
 				'key'   => 'lf_status',
 				'value' => sanitize_key( $filters['status'] ),
+			);
+		}
+
+		if ( 'this_week' === $filters['period'] ) {
+			$today = current_datetime()->setTime( 0, 0 );
+			$offset = ( (int) $today->format( 'w' ) - (int) get_option( 'start_of_week', 1 ) + 7 ) % 7;
+			$start = $today->modify( '-' . $offset . ' days' );
+			$meta_query[] = array(
+				'key' => 'lf_match_datetime',
+				'value' => array( $start->format( 'Y-m-d H:i' ), $start->modify( '+6 days' )->format( 'Y-m-d' ) . ' 23:59:59' ),
+				'compare' => 'BETWEEN',
+				'type' => 'DATETIME',
+			);
+		}
+
+		if ( 'upcoming' === $filters['period'] ) {
+			$meta_query[] = array(
+				'key' => 'lf_match_datetime',
+				'value' => current_datetime()->format( 'Y-m-d H:i' ),
+				'compare' => '>=',
+				'type' => 'DATETIME',
 			);
 		}
 
@@ -1415,6 +1439,9 @@ class Renderer {
 	 * @return array<string, mixed>
 	 */
 	protected function map_calendar_event_item( $event ) {
+		if ( ! can_view_league_post( $event ) ) {
+			return array();
+		}
 		$datetime_raw = (string) get_post_meta( $event->ID, 'lf_event_start_datetime', true );
 
 		if ( '' === $datetime_raw ) {
@@ -1468,6 +1495,9 @@ class Renderer {
 	 * @return array<string, mixed>
 	 */
 	protected function map_match_item( $match ) {
+		if ( ! can_view_league_post( $match ) ) {
+			return array();
+		}
 		$home_team_id = (int) get_post_meta( $match->ID, 'lf_home_team_id', true );
 		$away_team_id = (int) get_post_meta( $match->ID, 'lf_away_team_id', true );
 		$datetime_raw = (string) get_post_meta( $match->ID, 'lf_match_datetime', true );

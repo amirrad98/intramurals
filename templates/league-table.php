@@ -36,7 +36,11 @@ defined( 'ABSPATH' ) || exit;
 							<?php if ( $show_logos && ! empty( $row['logo'] ) ) : ?>
 								<span class="leagueflow-table__logo-wrap"><?php echo wp_kses_post( $row['logo'] ); ?></span>
 							<?php endif; ?>
-							<a href="<?php echo esc_url( $row['permalink'] ); ?>"><?php echo esc_html( $row['name'] ); ?></a>
+							<?php if ( ! empty( $row['permalink'] ) ) : ?>
+								<a href="<?php echo esc_url( $row['permalink'] ); ?>"><?php echo esc_html( $row['name'] ); ?></a>
+							<?php else : ?>
+								<span><?php echo esc_html( $row['name'] ); ?></span>
+							<?php endif; ?>
 						</td>
 						<td><?php echo esc_html( (string) $row['played'] ); ?></td>
 						<td><?php echo esc_html( (string) $row['wins'] ); ?></td>

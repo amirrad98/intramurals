@@ -21,9 +21,30 @@ class Post_Types {
 	 */
 	public function register() {
 		add_action( 'init', array( $this, 'register_post_types' ) );
+		add_filter( 'rest_pre_dispatch', array( $this, 'protect_private_rest_directories' ), 10, 3 );
+		add_filter( 'rest_post_search_query', array( $this, 'filter_rest_directory_search' ) );
 		add_action( 'init', array( $this, 'register_meta' ) );
 		add_action( 'init', __NAMESPACE__ . '\\ensure_player_team_details_migration', 20 );
 		add_filter( 'use_block_editor_for_post_type', array( $this, 'use_classic_editor_for_supported_types' ), 10, 2 );
+	}
+
+	/** Keep the REST directory consistent with the restricted portal/team pages. */
+	public function protect_private_rest_directories( $result, $server, $request ) {
+		if ( ! current_user_can( 'edit_posts' ) && preg_match( '#^/wp/v2/(lf_team|lf_player|lf_join_request)(?:/|$)#', $request->get_route() ) ) {
+			return new \WP_Error( 'leagueflow_directory_forbidden', __( 'Directory access is restricted.', 'leagueflow' ), array( 'status' => rest_authorization_required_code() ) );
+		}
+		return $result;
+	}
+
+	/** Exclude private directories from the general REST search endpoint as well. */
+	public function filter_rest_directory_search( $args ) {
+		if ( ! current_user_can( 'edit_posts' ) ) {
+			$args['post_type'] = array_values( array_diff( (array) $args['post_type'], array( 'lf_team', 'lf_player', 'lf_join_request' ) ) );
+			if ( empty( $args['post_type'] ) ) {
+				$args['post__in'] = array( 0 );
+			}
+		}
+		return $args;
 	}
 
 	/**

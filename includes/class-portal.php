@@ -1516,12 +1516,16 @@ class Portal {
 					<button type="submit"><?php esc_html_e( 'Save', 'leagueflow' ); ?></button>
 				</div>
 			</form>
+			<?php if ( $this->is_managed_roster_self( $player_id, $team_id, get_current_user_id() ) ) : ?>
+				<p><?php esc_html_e( 'You cannot remove yourself from a team you manage. Contact intramurals staff for help.', 'leagueflow' ); ?></p>
+			<?php else : ?>
 			<form class="leagueflow-portal-roster__remove" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 				<?php echo $this->render_hidden_fields( 'remove_roster_player' ); ?>
 				<input type="hidden" name="lf_team_id" value="<?php echo esc_attr( (string) $team_id ); ?>" />
 				<input type="hidden" name="lf_player_id" value="<?php echo esc_attr( (string) $player_id ); ?>" />
 				<button type="submit"><?php esc_html_e( 'Remove from team', 'leagueflow' ); ?></button>
 			</form>
+			<?php endif; ?>
 		</div>
 		<?php
 		return (string) ob_get_clean();
@@ -2296,6 +2300,14 @@ class Portal {
 			$player_id = $this->find_player_id_by_user( $linked_user->ID );
 		}
 
+		if ( $player_id && ! current_user_can( 'manage_options' ) && ! player_has_team( $player_id, $team_id ) ) {
+			$existing_owner = absint( get_post_meta( $player_id, 'lf_user_id', true ) );
+			$existing_player = get_post( $player_id );
+			if ( ( $existing_owner && $existing_owner !== (int) $user->ID ) || ( ! $existing_owner && (int) $existing_player->post_author !== (int) $user->ID ) ) {
+				$this->redirect_with_notice( 'player-identity-protected' );
+			}
+		}
+
 		if ( ! $player_id ) {
 			$player_id = wp_insert_post(
 				array(
@@ -2360,6 +2372,10 @@ class Portal {
 			$this->redirect_with_notice( 'team-denied' );
 		}
 
+		if ( $this->is_managed_roster_self( $player_id, $team_id, $user->ID ) ) {
+			$this->redirect_with_notice( 'captain-removal-denied' );
+		}
+
 		remove_player_team_id( $player_id, $team_id );
 		$this->redirect_with_notice( 'player-removed' );
 	}
@@ -2374,6 +2390,25 @@ class Portal {
 	 * @return void
 	 */
 	protected function save_roster_player_fields( $player_id, $team_id, $email, $name ) {
+		$owner_id = absint( get_post_meta( $player_id, 'lf_user_id', true ) );
+		$player = get_post( $player_id );
+		$stored_email = (string) get_post_meta( $player_id, 'lf_email', true );
+		$can_edit_identity = current_user_can( 'manage_options' ) || ( $owner_id && $owner_id === get_current_user_id() );
+		if ( ! $owner_id && $player instanceof \WP_Post && (int) $player->post_author === get_current_user_id() ) {
+			$can_edit_identity = true;
+			foreach ( get_player_team_ids( $player_id ) as $existing_team_id ) {
+				if ( ! $this->user_can_manage_team( $existing_team_id, get_current_user_id() ) ) {
+					$can_edit_identity = false;
+					break;
+				}
+			}
+		}
+		$email_changed = '' !== $email && strtolower( $email ) !== strtolower( $stored_email );
+		$name_changed = '' !== $name && $player instanceof \WP_Post && $name !== $player->post_title;
+		if ( ( ! $can_edit_identity && ( $email_changed || $name_changed ) ) || ( $owner_id && $email_changed && ! current_user_can( 'manage_options' ) ) ) {
+			$this->redirect_with_notice( 'player-identity-protected' );
+		}
+
 		if ( '' !== $name ) {
 			wp_update_post(
 				array(
@@ -2393,7 +2428,7 @@ class Portal {
 			)
 		);
 
-		if ( '' !== $email ) {
+		if ( '' !== $email && ( ! $owner_id || current_user_can( 'manage_options' ) ) ) {
 			update_post_meta( $player_id, 'lf_email', $email );
 
 			$linked_user = get_user_by( 'email', $email );
@@ -2931,6 +2966,10 @@ class Portal {
 		$player_id = is_email( $email ) ? $this->find_player_id_by_email( $email ) : 0;
 
 		if ( $player_id ) {
+			$owner_id = absint( get_post_meta( $player_id, 'lf_user_id', true ) );
+			if ( $owner_id && $owner_id !== (int) $user->ID ) {
+				return 0;
+			}
 			update_post_meta( $player_id, 'lf_user_id', (int) $user->ID );
 			add_user_role_if_missing( $user->ID, 'leagueflow_player' );
 			return $player_id;
@@ -3076,6 +3115,23 @@ class Portal {
 		}
 
 		return $this->user_can_manage_team( $team_id, $user_id );
+	}
+
+	/**
+	 * Whether this roster entry belongs to the manager acting on their own team.
+	 * The editable captain flag must not allow bypassing self-removal protection.
+	 *
+	 * @param int $player_id Player ID.
+	 * @param int $team_id Team ID.
+	 * @param int $user_id Acting user ID.
+	 * @return bool
+	 */
+	protected function is_managed_roster_self( $player_id, $team_id, $user_id ) {
+		$user_id = absint( $user_id );
+
+		return $user_id
+			&& $user_id === absint( get_post_meta( $player_id, 'lf_user_id', true ) )
+			&& in_array( $user_id, get_team_manager_user_ids( $team_id ), true );
 	}
 
 	/**
@@ -4079,6 +4135,7 @@ class Portal {
 			'player-added'   => __( 'Player added to the roster.', 'leagueflow' ),
 			'roster-saved'   => __( 'Roster player saved.', 'leagueflow' ),
 			'player-removed' => __( 'Player removed from the team.', 'leagueflow' ),
+			'captain-removal-denied' => __( 'You cannot remove yourself from a team you manage. Contact intramurals staff for help.', 'leagueflow' ),
 			'player-assigned' => __( 'That player is already assigned to another team.', 'leagueflow' ),
 			'join-request-sent' => __( 'Your team request was sent.', 'leagueflow' ),
 			'placement-request-sent' => __( 'Your placement request was sent.', 'leagueflow' ),
@@ -4091,6 +4148,7 @@ class Portal {
 			'placement-request-member' => __( 'You are already assigned to a team for that sport.', 'leagueflow' ),
 			'invalid-email'  => __( 'Please enter a valid email address or leave the email field blank.', 'leagueflow' ),
 			'access-denied'  => __( 'You do not have access to the portal.', 'leagueflow' ),
+			'player-identity-protected' => __( 'This player owns their profile. Ask them to update it or submit a join request; you can still edit their team roster details.', 'leagueflow' ),
 			'team-denied'    => __( 'You do not have permission to manage that team.', 'leagueflow' ),
 			'player-missing' => __( 'No player profile is linked to your account.', 'leagueflow' ),
 			'name-setup-required' => __( 'Enter your full name before using the portal.', 'leagueflow' ),
@@ -4108,7 +4166,7 @@ class Portal {
 			return '';
 		}
 
-		$type = in_array( $notice, array( 'invalid-email', 'access-denied', 'team-denied', 'team-exists', 'captain-sport-exists', 'player-sport-exists', 'player-missing', 'player-assigned', 'join-request-exists', 'placement-request-exists', 'join-request-member', 'placement-request-member', 'name-setup-required', 'sport-level-required', 'sport-request-required', 'team-level-mismatch', 'registration-email-denied', 'onboarding-save-error', 'registration-closed', 'upload-error', 'invalid-request' ), true ) ? 'error' : 'success';
+		$type = in_array( $notice, array( 'invalid-email', 'access-denied', 'player-identity-protected', 'captain-removal-denied', 'team-denied', 'team-exists', 'captain-sport-exists', 'player-sport-exists', 'player-missing', 'player-assigned', 'join-request-exists', 'placement-request-exists', 'join-request-member', 'placement-request-member', 'name-setup-required', 'sport-level-required', 'sport-request-required', 'team-level-mismatch', 'registration-email-denied', 'onboarding-save-error', 'registration-closed', 'upload-error', 'invalid-request' ), true ) ? 'error' : 'success';
 
 		return sprintf(
 			'<div class="leagueflow-portal__notice leagueflow-portal__notice--%1$s">%2$s</div>',

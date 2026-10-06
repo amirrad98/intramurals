@@ -300,7 +300,7 @@ class Rest_Controller {
 	public function get_availability( WP_REST_Request $request ) {
 		$match_id = absint( $request->get_param( 'match' ) );
 
-		if ( ! $match_id || 'lf_match' !== get_post_type( $match_id ) ) {
+		if ( ! $match_id || 'lf_match' !== get_post_type( $match_id ) || ! can_view_league_post( $match_id ) ) {
 			return rest_ensure_response(
 				new WP_Error(
 					'leagueflow_invalid_match',
@@ -508,6 +508,10 @@ class Rest_Controller {
 			$data = $data['event_data'];
 		}
 
+		if ( ! is_array( $data ) ) {
+			return new WP_Error( 'leagueflow_invalid_event', __( 'Event data must be an object.', 'leagueflow' ), array( 'status' => 400 ) );
+		}
+
 		$title = isset( $data['title'] ) ? sanitize_text_field( $data['title'] ) : '';
 		$start = $this->resolve_event_datetime( $data, 'start' );
 		$end   = $this->resolve_event_datetime( $data, 'end' );
@@ -518,6 +522,16 @@ class Rest_Controller {
 
 		if ( '' === $start ) {
 			return new WP_Error( 'leagueflow_missing_start_datetime', __( 'Event start date/time is required.', 'leagueflow' ), array( 'status' => 400 ) );
+		}
+
+		foreach ( array( 'end_datetime', 'endDate', 'end', 'end_time' ) as $end_key ) {
+			if ( isset( $data[ $end_key ] ) && '' !== $data[ $end_key ] && '' === $end ) {
+				return new WP_Error( 'leagueflow_invalid_end_datetime', __( 'Event end date/time is invalid.', 'leagueflow' ), array( 'status' => 400 ) );
+			}
+		}
+
+		if ( '' !== $end && $end <= $start ) {
+			return new WP_Error( 'leagueflow_invalid_event_range', __( 'Event end time must be after its start time.', 'leagueflow' ), array( 'status' => 400 ) );
 		}
 
 		$post_status = isset( $data['post_status'] ) && is_scalar( $data['post_status'] ) ? sanitize_key( (string) $data['post_status'] ) : 'publish';
@@ -945,11 +959,7 @@ class Rest_Controller {
 				continue;
 			}
 
-			$timestamp = strtotime( (string) $data[ $key ] );
-
-			if ( false !== $timestamp ) {
-				return wp_date( 'Y-m-d H:i', $timestamp, wp_timezone() );
-			}
+			return $this->parse_event_datetime( (string) $data[ $key ] );
 		}
 
 		$date = $this->sanitize_date_param( $data['date'] ?? $data['event_date'] ?? '' );
@@ -965,9 +975,25 @@ class Rest_Controller {
 			return '';
 		}
 
-		$timestamp = strtotime( $date . ' ' . $time );
+		return $this->parse_event_datetime( $date . ' ' . $time );
+	}
 
-		return false !== $timestamp ? wp_date( 'Y-m-d H:i', $timestamp, wp_timezone() ) : '';
+	/** Parse a local wall-clock value or an ISO 8601 value with an explicit offset. */
+	protected function parse_event_datetime( $value ) {
+		$value = trim( $value );
+		if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?$/', $value ) ) {
+			return '';
+		}
+		try {
+			$datetime = new \DateTimeImmutable( $value, wp_timezone() );
+			$errors = \DateTimeImmutable::getLastErrors();
+			if ( $errors && ( $errors['warning_count'] || $errors['error_count'] ) ) {
+				return '';
+			}
+			return $datetime->setTimezone( wp_timezone() )->format( 'Y-m-d H:i' );
+		} catch ( \Exception $exception ) {
+			return '';
+		}
 	}
 
 	/**

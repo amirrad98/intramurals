@@ -1348,3 +1348,45 @@ function score_to_int( $value ) {
 function has_score( $value ) {
 	return '' !== (string) $value && null !== $value;
 }
+
+/**
+ * Query statuses for public league data; staff can preview records they may read.
+ *
+ * @return array<string>
+ */
+function frontend_post_statuses() {
+	return current_user_can( 'edit_posts' )
+		? array( 'publish', 'future', 'draft', 'pending', 'private' )
+		: array( 'publish' );
+}
+
+/**
+ * Check a league record and, for fixtures, its referenced teams before rendering.
+ *
+ * @param int|\WP_Post $post Record.
+ * @return bool
+ */
+function can_view_league_post( $post ) {
+	$post = get_post( $post );
+	if ( ! $post instanceof \WP_Post ) {
+		return false;
+	}
+	$staff_can_read = current_user_can( 'edit_posts' ) && current_user_can( 'read_post', $post->ID );
+	if ( ! $staff_can_read && ( 'publish' !== $post->post_status || post_password_required( $post ) ) ) {
+		return false;
+	}
+	if ( 'lf_match' === $post->post_type ) {
+		foreach ( array( 'lf_home_team_id', 'lf_away_team_id' ) as $key ) {
+			$team_id = (int) get_post_meta( $post->ID, $key, true );
+			if ( $team_id && ( 'lf_team' !== get_post_type( $team_id ) || ! can_view_league_post( $team_id ) ) ) {
+				return false;
+			}
+		}
+	}
+	return true;
+}
+
+/** Team profile destination; themes can disable links when profiles are unavailable. */
+function team_profile_url( $team_id ) {
+	return (string) apply_filters( 'leagueflow_team_profile_url', get_permalink( $team_id ), $team_id );
+}

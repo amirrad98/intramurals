@@ -3,7 +3,7 @@
  * Plugin Name: LeagueFlow
  * Plugin URI: https://example.com/leagueflow
  * Description: Native WordPress soccer league management for teams, players, fixtures, standings, and knockout brackets.
- * Version: 1.0.0
+ * Version: 1.0.1
  * Author: 1stform
  * Text Domain: leagueflow
  * Domain Path: /languages
@@ -14,7 +14,7 @@
 defined( 'ABSPATH' ) || exit;
 
 if ( ! defined( 'LEAGUEFLOW_VERSION' ) ) {
-	define( 'LEAGUEFLOW_VERSION', '1.0.0' );
+	define( 'LEAGUEFLOW_VERSION', '1.0.1' );
 }
 
 if ( ! defined( 'LEAGUEFLOW_FILE' ) ) {
