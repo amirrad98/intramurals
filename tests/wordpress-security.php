@@ -37,7 +37,7 @@ function lf_request( $route, $method = 'GET', $data = array() ) {
 function lf_matches_count() { global $wpdb; return (int) $wpdb->get_var( "SELECT COUNT(*) FROM $wpdb->posts WHERE post_type='lf_match'" ); }
 function lf_events_count() { global $wpdb; return (int) $wpdb->get_var( "SELECT COUNT(*) FROM $wpdb->posts WHERE post_type='lf_calendar_event'" ); }
 
-$lf_assertions = 0;
+$GLOBALS['lf_assertions'] = 0;
 $admin_user = get_user_by( 'login', 'admin' );
 $admin_id = $admin_user->ID;
 wp_set_current_user( $admin_id );
@@ -369,4 +369,5 @@ foreach ( $tests as $name => $test ) {
 }
 wp_set_current_user( $admin_id ); $_POST = array(); $_REQUEST = array();
 if ( $failures ) { WP_CLI::error( implode( "\n", $failures ) ); }
-WP_CLI::success( 'Eight native security groups pass; ' . $lf_assertions . ' assertions. WordPress ' . get_bloginfo( 'version' ) );
+lf_assert( $GLOBALS['lf_assertions'] > 500, 'Native regression assertions were unexpectedly skipped.' );
+WP_CLI::success( 'Eight native security groups pass; ' . $GLOBALS['lf_assertions'] . ' assertions. WordPress ' . get_bloginfo( 'version' ) );
