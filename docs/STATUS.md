@@ -33,3 +33,18 @@
   exactly as WordPress's `wp_ajax_update_plugin()` dashboard handler does. Real
   error, installation, active-folder and database assertions remain mandatory;
   rerun and milestone acceptance remain pending.
+- Branch run `37550392288` at `c16a4d74d700ed0fb61bcb5e386b7132f536234b`
+  passed all seven check jobs: PHP 8.1–8.4, deterministic package/publication
+  tests, and native WordPress 6.5/7.1.3 discovery, details, checksum rejection
+  and verified upgrade with active folder and stored league data preserved.
+  Publication was correctly skipped on the branch. All 58 original locally
+  installed plugin hashes remain unchanged; among original ZIP files, only the
+  bootstrap and README differ for release support. Milestone 1 acceptance and
+  Milestone 2 readiness audit are pending; no release tag exists yet.
+- Plan Guardian Milestone 1 completion / Milestone 2 readiness audit PASS:
+  REL-01 through REL-05 independently accepted. Guardian reran 40-file syntax,
+  63 updater assertions, 9 Python tests, actionlint/diff checks, deterministic
+  packaging and baseline hash preservation, and verified successful native CI.
+  Milestone 1 is complete; Milestone 2 may publish the initial stable release.
+  REL-06 remains IMPLEMENTED until actual tag-run/public-asset verification and
+  final independent acceptance.
