@@ -4,8 +4,8 @@
   public feed and checksum-verifying updater. LeagueFlow will distribute directly
   through its existing public GitHub release assets, without another repository
   or additional site credentials.
-- Implementation and publication have not started. Plan Guardian readiness audit
-  is pending. Docker is not running locally; native WordPress integration will run
+- Initial planning: implementation and publication had not started; readiness
+  audit was pending. Docker is not running locally; native WordPress integration will run
   in disposable GitHub Actions services. Local isolated tests remain distinct from
   native WordPress evidence.
 - Readiness audit initially returned FAIL with PG-REL-001 (updater contracts),
@@ -20,3 +20,9 @@
   and 9 Python build/publication tests pass. Native WordPress checks require the
   preliminary branch push to provision disposable Actions services; milestone
   acceptance and public release remain pending.
+- Preliminary branch run `37549317643` passed PHP 8.1–8.4 and package checks.
+  Native WordPress 6.5/latest failed because the test harness called nonexistent
+  `Automatic_Upgrader_Skin::get_errors()`. Corrected the test to use WordPress's
+  `WP_Ajax_Upgrader_Skin`, which collects upgrade errors; checksum rejection remains
+  mandatory. Updated pinned official Actions to v6 and fixed Ubuntu to 24.04
+  after runner deprecation warnings. Native rerun remains pending.

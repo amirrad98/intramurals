@@ -71,10 +71,10 @@ try {
 	$info = plugins_api( 'plugin_information', (object) array( 'slug' => 'leagueflow' ) );
 	leagueflow_test_assert( ! is_wp_error( $info ) && $next === $info->version && $package === $info->download_link, 'Native plugin details failed.' );
 	$before = leagueflow_test_hashes();
-	$skin = new Automatic_Upgrader_Skin(); $upgrader = new Plugin_Upgrader( $skin );
+	$skin = new WP_Ajax_Upgrader_Skin(); $upgrader = new Plugin_Upgrader( $skin );
 	$result = $upgrader->upgrade( $plugin );
 	leagueflow_test_assert( true !== $result, 'Tampered package was installed.' );
-	leagueflow_test_assert( in_array( 'leagueflow_update_checksum', $skin->get_errors()->get_error_codes(), true ) || ( is_wp_error( $result ) && 'leagueflow_update_checksum' === $result->get_error_code() ), 'Native upgrade did not report checksum failure.' );
+	leagueflow_test_assert( in_array( 'leagueflow_update_checksum', $skin->get_errors()->get_error_codes(), true ), 'Native upgrade did not report checksum failure.' );
 	leagueflow_test_assert( $before === leagueflow_test_hashes(), 'Rejected upgrade changed installed files.' );
 	leagueflow_test_assert( is_plugin_active( $plugin ), 'Rejected upgrade changed active status.' );
 	$corrupt = false;
