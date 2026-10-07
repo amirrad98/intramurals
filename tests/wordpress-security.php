@@ -102,10 +102,12 @@ $tests['SEC-01 accounts'] = static function() use ( $admin, $admin_id, $contribu
 	preg_match( '~https?://[^\s]+action=rp[^\s]*~', $mail[0]['message'], $match );
 	parse_str( parse_url( $match[0] ?? '', PHP_URL_QUERY ) ?: '', $params );
 	lf_assert( ! is_wp_error( check_password_reset_key( $params['key'] ?? '', get_userdata( $id )->user_login ) ), 'Setup link is invalid.' );
-	reset_password( get_userdata( $id ), 'Disposable-player-selected-password' );
+	add_filter( 'pre_wp_mail', $capture, 10, 2 );
+	try { reset_password( get_userdata( $id ), 'Disposable-player-selected-password' ); }
+	finally { remove_filter( 'pre_wp_mail', $capture, 10 ); }
 	lf_assert( is_wp_error( check_password_reset_key( $params['key'], get_userdata( $id )->user_login ) ), 'Setup link is reusable.' );
 	set_transient( 'leagueflow_player_credentials_' . $admin_id, array( 'username' => 'old', 'password' => 'legacy-secret' ), 60 );
-	ob_start(); $admin->render_notices(); $notice = ob_get_clean();
+	ob_start(); $admin->render_admin_notices(); $notice = ob_get_clean();
 	lf_assert( false === strpos( $notice, 'legacy-secret' ) && false === get_transient( 'leagueflow_player_credentials_' . $admin_id ), 'Legacy password displayed or retained.' );
 	lf_assert( false === strpos( $notice, 'Temporary password' ) && $before === get_userdata( $admin_id )->user_pass, 'Credential notice or administrator password changed.' );
 };
