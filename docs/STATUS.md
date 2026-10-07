@@ -48,3 +48,22 @@
   Milestone 1 is complete; Milestone 2 may publish the initial stable release.
   REL-06 remains IMPLEMENTED until actual tag-run/public-asset verification and
   final independent acceptance.
+- Approved Milestone 1 evidence committed as `1750e66`; annotated `v1.0.2`
+  points to that commit and was pushed. Initial tag run `37558582665` is pending.
+  No live WordPress installation was changed.
+- Tag run `37558582665` at `1750e66dcb5ee4b83c82b11a81f2758a0c4661af`
+  passed all eight jobs, including draft-first publication. Stable/latest public
+  release: https://github.com/amirrad98/intramurals/releases/tag/v1.0.2
+  Anonymous verification passed for all three exact assets, latest and pinned
+  manifests, and stable/latest GitHub API metadata (six HTTP 200 requests).
+  ZIP SHA-256: `680406fe3690ea48cc2ce4529e00563bac5c15a0ba6adc323e4ab2e286c1279d`.
+  Milestone 2 and final full-project acceptance are pending independent audit;
+  REL-06 remains IMPLEMENTED until that audit passes.
+- Plan Guardian Milestone 2 / full-project / pre-completion-commit audit PASS:
+  all six mandatory requirements independently accepted with no open findings.
+  Guardian verified all eight tag jobs, independently reran the 40-file syntax,
+  63 updater assertions, 9 Python tests and deterministic build, independently
+  downloaded the six public endpoints, and confirmed tagged history and all
+  baseline preservation checks. REL-06 is VERIFIED; both milestones are complete.
+  Final administrative commit changes only these audit records. Published tag
+  and assets remain unchanged.
