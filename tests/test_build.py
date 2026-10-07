@@ -49,7 +49,8 @@ class BuildTests(unittest.TestCase):
                 build(self.root, tag=tag)
         plugin = self.root / "leagueflow.php"
         source = plugin.read_text()
-        for bad in ["01.0.2", "1.0.2-beta.1", "1.2", "1.0.3"]:
+        mismatch = str(int(version.split(".")[0]) + 1) + ".0.0"
+        for bad in ["01.0.2", "1.0.2-beta.1", "1.2", mismatch]:
             plugin.write_text(source.replace(" * Version: " + version, " * Version: " + bad))
             with self.subTest(version=bad), self.assertRaises(ValueError):
                 build(self.root)

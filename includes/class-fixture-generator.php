@@ -198,7 +198,7 @@ class Fixture_Generator {
 			$args['tax_query'] = $tax_query;
 		}
 
-		return array_values( array_map( 'absint', get_posts( $args ) ) );
+		return array_values( array_filter( array_map( 'absint', get_posts( $args ) ), static function( $id ) { return current_user_can( 'read_post', $id ); } ) );
 	}
 
 	/**
@@ -210,7 +210,20 @@ class Fixture_Generator {
 	 */
 	public function persist( $rounds, $context ) {
 		$context = $this->normalize_context( $context );
-		$status  = 'publish' === $context['post_status'] ? 'publish' : 'draft';
+		$type = get_post_type_object( 'lf_match' );
+		if ( ! current_user_can( 'leagueflow_manage_fixtures' ) || ! $type || ! current_user_can( $type->cap->create_posts ) ) {
+			return new \WP_Error( 'leagueflow_fixtures_forbidden', __( 'You do not have permission to generate fixtures.', 'leagueflow' ), array( 'status' => 403 ) );
+		}
+		$status = 'publish' === $context['post_status'] && current_user_can( $type->cap->publish_posts ) ? 'publish' : 'draft';
+		foreach ( $rounds as $round ) {
+			foreach ( $round['matches'] as $pairing ) {
+				foreach ( array( $pairing['home'] ?? 0, $pairing['away'] ?? 0 ) as $team_id ) {
+					if ( 'lf_team' !== get_post_type( $team_id ) || ! current_user_can( 'read_post', $team_id ) ) {
+						return new \WP_Error( 'leagueflow_fixtures_team_forbidden', __( 'Every fixture team must be readable by you.', 'leagueflow' ), array( 'status' => 403 ) );
+					}
+				}
+			}
+		}
 
 		$created = array();
 
@@ -265,6 +278,9 @@ class Fixture_Generator {
 	 * @return array<string, mixed>|\WP_Error Result summary or an error.
 	 */
 	public function generate( $context ) {
+		if ( ! current_user_can( 'leagueflow_manage_fixtures' ) ) {
+			return new \WP_Error( 'leagueflow_fixtures_forbidden', __( 'You do not have permission to generate fixtures.', 'leagueflow' ), array( 'status' => 403 ) );
+		}
 		$context  = $this->normalize_context( $context );
 		$team_ids = $this->get_context_team_ids( $context );
 
@@ -277,6 +293,7 @@ class Fixture_Generator {
 
 		$rounds = $this->build_rounds( $team_ids, $context['legs'] );
 		$result = $this->persist( $rounds, $context );
+		if ( is_wp_error( $result ) ) { return $result; }
 
 		$result['teams']     = count( $team_ids );
 		$result['scheduled'] = 0;

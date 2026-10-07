@@ -279,16 +279,19 @@ class Knockout_Service {
 		$next_match_id  = (int) get_post_meta( $match_id, 'lf_next_match_id', true );
 		$slot           = get_post_meta( $match_id, 'lf_next_match_slot', true );
 
-		if ( ! $winner_team_id || ! $next_match_id ) {
+		if ( ! $winner_team_id || 'lf_team' !== get_post_type( $winner_team_id ) || ! $this->can_advance_to( $match_id, $next_match_id ) ) {
 			return 0;
 		}
 
+		if ( ! current_user_can( 'edit_post', $match_id ) || ! current_user_can( 'edit_post', $next_match_id ) ) { return 0; }
 		$slot = in_array( $slot, array( 'home', 'away' ), true ) ? $slot : 'home';
 		update_post_meta( $next_match_id, 'lf_' . $slot . '_team_id', $winner_team_id );
 
 		$home_team_id = (int) get_post_meta( $next_match_id, 'lf_home_team_id', true );
 		$away_team_id = (int) get_post_meta( $next_match_id, 'lf_away_team_id', true );
 		$datetime     = (string) get_post_meta( $next_match_id, 'lf_match_datetime', true );
+
+		if ( ! current_user_can( 'edit_post', $match_id ) || ! current_user_can( 'edit_post', $next_match_id ) ) { return 0; }
 
 		remove_action( 'save_post_lf_match', array( $this, 'handle_match_save' ), 30 );
 
@@ -302,6 +305,30 @@ class Knockout_Service {
 		add_action( 'save_post_lf_match', array( $this, 'handle_match_save' ), 30, 3 );
 
 		return $winner_team_id;
+	}
+
+	/** Validate the whole referenced graph before permitting a cross-match write. */
+	public function can_advance_to( $match_id, $next_match_id, $context = array(), $round_order = null ) {
+		if ( 'lf_match' !== get_post_type( $match_id ) || ! current_user_can( 'edit_post', $match_id ) || ! $next_match_id ) { return false; }
+		$visited = array( (int) $match_id => true );
+		$previous = (int) $match_id;
+		$node = (int) $next_match_id;
+		for ( $hop = 0; $node && $hop < 100; ++$hop ) {
+			if ( isset( $visited[$node] ) || 'lf_match' !== get_post_type( $node ) || ! current_user_can( 'edit_post', $node ) ) { return false; }
+			foreach ( array( 'lf_sport', 'lf_league_level', 'lf_competition', 'lf_season' ) as $taxonomy ) {
+				$source = $context[$taxonomy] ?? wp_get_object_terms( $match_id, $taxonomy, array( 'fields' => 'ids' ) );
+				$target = wp_get_object_terms( $node, $taxonomy, array( 'fields' => 'ids' ) );
+				if ( is_wp_error( $source ) || is_wp_error( $target ) ) { return false; }
+				sort( $source ); sort( $target );
+				if ( $source !== $target ) { return false; }
+			}
+			$order = $previous === (int) $match_id && null !== $round_order ? (int) $round_order : (int) get_post_meta( $previous, 'lf_round_order', true );
+			if ( $order > 0 && (int) get_post_meta( $node, 'lf_round_order', true ) <= $order ) { return false; }
+			$visited[$node] = true;
+			$previous = $node;
+			$node = (int) get_post_meta( $node, 'lf_next_match_id', true );
+		}
+		return 0 === $node;
 	}
 
 	/**

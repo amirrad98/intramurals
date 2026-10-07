@@ -14,7 +14,7 @@ get_header();
 		<header class="leagueflow-archive__header">
 			<h1><?php post_type_archive_title(); ?></h1>
 		</header>
-		<?php echo leagueflow()->renderer()->render_match_list( array( 'limit' => -1 ) ); ?>
+		<?php echo leagueflow()->renderer()->render_match_archive(); ?>
 	</div>
 </main>
 <?php

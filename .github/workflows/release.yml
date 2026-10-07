@@ -31,7 +31,7 @@ jobs:
           tools: none
       - name: PHP syntax and updater tests
         run: |
-          find includes templates -name '*.php' -print0 | xargs -0 -n1 php -l
+          find includes templates tests -name '*.php' -print0 | xargs -0 -n1 php -l
           php -l leagueflow.php
           php -l uninstall.php
           php tests/github-updater.php
@@ -87,7 +87,7 @@ jobs:
           extensions: mysqli, zip
           coverage: none
           tools: wp-cli
-      - name: Install disposable WordPress and exercise native updates
+      - name: Install disposable WordPress and exercise security and updates
         env:
           WP_TEST_VERSION: ${{ matrix.wordpress }}
         run: |
@@ -99,6 +99,7 @@ jobs:
           wp core install --path="$wp_root" --url=http://leagueflow.test --title=LeagueFlow --admin_user=admin --admin_password=disposable-test-only --admin_email=test@example.test --skip-email
           export LEAGUEFLOW_TEST_PACKAGE="$GITHUB_WORKSPACE/dist/leagueflow-$(python3 -c 'from scripts.build import metadata,ROOT; print(metadata(ROOT)["version"])').zip"
           wp plugin install "$LEAGUEFLOW_TEST_PACKAGE" --activate --path="$wp_root"
+          wp eval-file "$GITHUB_WORKSPACE/tests/wordpress-security.php" --path="$wp_root"
           wp eval-file "$GITHUB_WORKSPACE/tests/wordpress-update.php" --path="$wp_root"
 
   publish:

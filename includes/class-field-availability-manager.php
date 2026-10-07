@@ -265,6 +265,10 @@ class Field_Availability_Manager {
 	 * @return array<string, mixed>|\WP_Error
 	 */
 	public function save_availability( $data ) {
+		if ( ! current_user_can( 'leagueflow_manage_field_availability' ) ) {
+			return new \WP_Error( 'leagueflow_availability_forbidden', __( 'Field configuration requires scheduling administration permission.', 'leagueflow' ), array( 'status' => 403 ) );
+		}
+
 		$availability = $this->sanitize_availability( $data );
 
 		if ( is_wp_error( $availability ) ) {
@@ -298,6 +302,10 @@ class Field_Availability_Manager {
 	 * @return bool
 	 */
 	public function delete_availability( $availability_id ) {
+		if ( ! current_user_can( 'leagueflow_manage_field_availability' ) ) {
+			return false;
+		}
+
 		$availability_id = sanitize_key( (string) $availability_id );
 		$items           = $this->get_availabilities();
 		$remaining       = array();
@@ -362,18 +370,30 @@ class Field_Availability_Manager {
 	 * @return array<string, mixed>
 	 */
 	public function schedule_matches( $args = array() ) {
-		$this->load_scheduling_constraints();
-		$args    = $this->normalize_schedule_args( $args );
+		$args = $this->normalize_schedule_args( $args );
+		$results = array( 'scheduled' => 0, 'skipped' => 0, 'failed' => 0, 'updated' => array(), 'messages' => array() );
+		if ( ! current_user_can( 'leagueflow_manage_schedule' ) || ( $args['overwrite'] && ! current_user_can( 'leagueflow_overwrite_schedule' ) ) ) {
+			$results['failed'] = 1;
+			$results['messages'][] = __( 'You do not have permission to schedule these matches.', 'leagueflow' );
+			return $results;
+		}
+		foreach ( $args['match_ids'] as $match_id ) {
+			if ( ! $this->can_schedule_target( $match_id, $args ) ) {
+				$results['failed'] = 1;
+				$results['messages'][] = __( 'Every requested scheduling target must be an editable match.', 'leagueflow' );
+				return $results;
+			}
+		}
 		$matches = $this->get_scheduleable_matches( $args );
-		$slots   = $this->build_slots( $args );
-
-		$results = array(
-			'scheduled' => 0,
-			'skipped'   => 0,
-			'failed'    => 0,
-			'updated'   => array(),
-			'messages'  => array(),
-		);
+		foreach ( $matches as $match ) {
+			if ( ! $this->can_schedule_target( $match->ID, $args ) ) {
+				$results['failed'] = count( $matches );
+				$results['messages'][] = __( 'The scheduling scope contains a match you cannot edit. No matches were changed.', 'leagueflow' );
+				return $results;
+			}
+		}
+		$this->load_scheduling_constraints();
+		$slots = $this->build_slots( $args );
 
 		if ( empty( $matches ) ) {
 			$results['messages'][] = __( 'No matches matched the selected scheduling scope.', 'leagueflow' );
@@ -438,6 +458,10 @@ class Field_Availability_Manager {
 	 * @return array<string, mixed>
 	 */
 	protected function schedule_one_match( $match_id, $args, $slots, $conflicts, &$reserved ) {
+		if ( ! $this->can_schedule_target( $match_id, $args ) ) {
+			return array( 'failed' => true, 'message' => __( 'Match scheduling permission was denied.', 'leagueflow' ) );
+		}
+
 		$datetime = (string) get_post_meta( $match_id, 'lf_match_datetime', true );
 		$venue    = (string) get_post_meta( $match_id, 'lf_venue', true );
 		$mode     = (string) $args['mode'];
@@ -465,6 +489,10 @@ class Field_Availability_Manager {
 			);
 		}
 
+
+		if ( ! $this->can_schedule_target( $match_id, $args ) ) {
+			return array( 'failed' => true, 'message' => __( 'Match scheduling permission was denied.', 'leagueflow' ) );
+		}
 		$new_datetime = $datetime;
 		$new_venue    = $venue;
 
@@ -484,13 +512,20 @@ class Field_Availability_Manager {
 
 		$this->reserve_slot_for_match( $slot, $match_id, $reserved );
 
-		if ( empty( $args['suppress_title_sync'] ) ) {
+		if ( empty( $args['suppress_title_sync'] ) && $this->can_schedule_target( $match_id, $args ) ) {
 			$this->sync_match_title_from_meta( $match_id, $new_datetime );
 		}
 
 		return array(
 			'scheduled' => true,
 		);
+	}
+
+	/** Recheck global and object-specific authority at the mutation boundary. */
+	protected function can_schedule_target( $match_id, $args ) {
+		return current_user_can( 'leagueflow_manage_schedule' ) && 'lf_match' === get_post_type( $match_id )
+			&& current_user_can( 'edit_post', $match_id )
+			&& ( empty( $args['overwrite'] ) || current_user_can( 'leagueflow_overwrite_schedule' ) );
 	}
 
 	/**
@@ -1246,7 +1281,7 @@ class Field_Availability_Manager {
 		$args['competition_id']      = absint( $args['competition_id'] );
 		$args['season_id']           = absint( $args['season_id'] );
 		$args['overwrite']           = ! empty( $args['overwrite'] );
-		$args['match_ids']           = array_filter( array_map( 'absint', (array) $args['match_ids'] ) );
+		$args['match_ids']           = array_values( array_unique( array_map( 'absint', (array) $args['match_ids'] ) ) );
 		$args['suppress_title_sync'] = ! empty( $args['suppress_title_sync'] );
 		$args['mode']                = sanitize_key( (string) $args['mode'] );
 		$modes                       = $this->get_update_modes();

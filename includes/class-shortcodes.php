@@ -42,6 +42,7 @@ class Shortcodes {
 		add_shortcode( 'team_roster', array( $this, 'team_roster' ) );
 		add_shortcode( 'team_page', array( $this, 'team_page' ) );
 		add_shortcode( 'match_list', array( $this, 'match_list' ) );
+		add_shortcode( 'match_archive', array( $this->renderer, 'render_match_archive' ) );
 		add_shortcode( 'match_calendar', array( $this, 'match_calendar' ) );
 		add_shortcode( 'sports_calendar', array( $this, 'match_calendar' ) );
 		add_shortcode( 'match_card', array( $this, 'match_card' ) );

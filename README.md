@@ -48,7 +48,7 @@ For a new stable release:
 
 1. Update the plugin header and `LEAGUEFLOW_VERSION` to the same new `X.Y.Z`.
 2. Add `releases/X.Y.Z.md` release notes, run the local checks, commit and push.
-3. Wait for branch CI: PHP 8.1–8.4, package/publication tests and native upgrade
+3. Wait for branch CI: PHP 8.1–8.4, package/publication tests, native security regressions and upgrade
    integration on disposable WordPress 6.5 and current stable sites.
 4. Create an annotated matching tag (`git tag -a vX.Y.Z -m 'LeagueFlow X.Y.Z'`)
    and push it (`git push origin vX.Y.Z`).
@@ -62,6 +62,7 @@ ZIP; increment the version instead. Branch and pull-request builds upload test
 artifacts but do not publish releases. No additional GitHub secrets are required.
 
 Native integration sets `LEAGUEFLOW_TEST_PACKAGE` to the built ZIP and runs
+`wp eval-file tests/wordpress-security.php`, followed by
 `wp eval-file tests/wordpress-update.php` on an isolated
 `http://leagueflow.test` installation with MySQL, PHP 8.2, WP-CLI, `zip`, `mysqli`
 and the built plugin activated. Controlled HTTP fixtures exercise real WordPress
@@ -163,6 +164,12 @@ leagueflow/
 - Sport-specific menus also provide sport-scoped player screens and `Add Player` links.
 - Assign each player to a team from the metabox.
 - Mark captains with the captain checkbox.
+- Administrators can link an eligible subscriber or portal account, or provision
+  a new account using the player's valid, unused email. New users receive a
+  WordPress password-setup link. Linking keeps existing passwords unchanged.
+  Account controls require `leagueflow_manage_player_accounts`, `edit_users`
+  and `promote_users`; provisioning also requires `create_users`. Privileged
+  users and your own account cannot be linked as player identities.
 
 ### Matches
 
@@ -183,6 +190,15 @@ leagueflow/
 - Use `Auto Schedule Matches` to fill missing match dates, venues, or both for a sport, competition, season, date range, or specific date.
 - Existing matches and calendar events at the same venue are treated as conflicts, and teams are not placed into overlapping match slots.
 - Manual match edits remain the override path unless the overwrite option is intentionally selected.
+- Global field configuration requires `leagueflow_manage_field_availability`.
+  Bulk scheduling requires `leagueflow_manage_schedule` and permission to edit
+  every affected match; overwrite also requires `leagueflow_overwrite_schedule`.
+  Fixture generation requires `leagueflow_manage_fixtures` and readable teams.
+  Users without WordPress publication permission generate drafts.
+
+These management capabilities are granted to administrators automatically on
+upgrade. Explicitly grant them when delegating to custom roles. Field availability
+permission authorizes changes across the whole site, including sport menu pages.
 
 ### League Levels
 
@@ -242,8 +258,35 @@ Public read-only endpoints are available under:
 - `/wp-json/leagueflow/v1/teams`
 - `/wp-json/leagueflow/v1/bracket`
 - `/wp-json/leagueflow/v1/league-levels`
+- `/wp-json/leagueflow/v1/events`
+- `/wp-json/leagueflow/v1/calendar/events`
 
 Supported query parameters include `sport`, `league_level`, `competition`, `season`, `status`, `team`, `limit`, and `include_knockout`.
+
+Matches use `limit` and `page`; calendar endpoints use `per_page` and `page`.
+The default is 20 records per page and the maximum is 100. Zero/negative limits
+use the default; oversized limits use the maximum. Calendar responses include
+`total`, `pages` and `pagination`; filter metadata describes the requested page.
+Date ranges (`start_date`, `end_date`), status, team, type and taxonomy filters
+apply before database pagination. Calendar search includes titles, descriptions,
+venues, teams and taxonomy labels. Match archives have page navigation.
+
+Anonymous general collections omit fixtures referencing private or protected
+teams, including when a password cookie exists. An explicit `team` filter verifies
+that team's WordPress password cookie and includes its fixtures once unlocked;
+the team's unlocked profile and recent matches remain available. Staff retain
+private-team access through WordPress's normal permissions.
+
+Embedded match lists and `[match_calendar]` also default to 20 and are capped at
+100 records through their `limit` attribute. They no longer load all historical
+records; use date/taxonomy scopes or the paginated REST endpoints for larger feeds.
+
+Both `POST /calendar/events` and `POST /events/create-calendar-event` require
+WordPress event creation/editing permission. Users who can publish default to
+published events; other authors default to draft. Explicit publication, scheduled
+publication and private status require their corresponding WordPress permissions.
+Existing terms require assignment permission, and new terms additionally require
+taxonomy management permission.
 
 ## Demo Data
 

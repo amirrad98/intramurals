@@ -283,8 +283,56 @@ function ensure_portal_roles() {
 		$admin->add_cap( 'leagueflow_manage_profile' );
 		$admin->add_cap( 'leagueflow_manage_team' );
 		$admin->add_cap( 'leagueflow_manage_placements' );
+		foreach ( array( 'leagueflow_manage_player_accounts', 'leagueflow_manage_field_availability', 'leagueflow_manage_schedule', 'leagueflow_overwrite_schedule', 'leagueflow_manage_fixtures' ) as $capability ) {
+			if ( ! $admin->has_cap( $capability ) ) {
+				$admin->add_cap( $capability );
+			}
+		}
 	}
 }
+
+/** Player editing alone never grants WordPress account administration. */
+function can_manage_player_accounts() {
+	return current_user_can( 'leagueflow_manage_player_accounts' ) && current_user_can( 'edit_users' ) && current_user_can( 'promote_users' );
+}
+
+/** Only low-privilege portal identities may be linked to player records. */
+function can_link_player_account( $user_id ) {
+	$user = get_user_by( 'id', absint( $user_id ) );
+	$roles = array( 'subscriber', 'leagueflow_player', 'leagueflow_team_manager' );
+	if ( ! can_manage_player_accounts() || ! $user instanceof \WP_User || $user->ID === get_current_user_id()
+		|| empty( $user->roles ) || array_diff( $user->roles, $roles ) || is_super_admin( $user->ID )
+		|| ! current_user_can( 'edit_user', $user->ID ) || ! current_user_can( 'promote_user', $user->ID ) ) {
+		return false;
+	}
+	$allowed = array_merge( $roles, array( 'read', 'level_0', 'leagueflow_manage_profile', 'leagueflow_manage_team' ) );
+	foreach ( $user->allcaps as $capability => $granted ) {
+		if ( $granted && ! in_array( $capability, $allowed, true ) ) {
+			return false;
+		}
+	}
+	$capabilities = array_keys( $user->allcaps );
+	foreach ( wp_roles()->roles as $role ) {
+		$capabilities = array_merge( $capabilities, array_keys( $role['capabilities'] ) );
+	}
+	foreach ( array_diff( array_unique( $capabilities ), $allowed ) as $capability ) {
+		if ( user_can( $user, $capability ) ) { return false; }
+	}
+	return true;
+}
+
+/** Server-controlled bounds for public collection requests. */
+function public_collection_limit( $limit ) {
+	return is_numeric( $limit ) && (int) $limit > 0 ? min( 100, (int) $limit ) : 20;
+}
+function public_collection_page( $page ) {
+	return is_numeric( $page ) ? max( 1, min( 10000, (int) $page ) ) : 1;
+}
+function public_collection_date( $value ) {
+	if ( ! is_scalar( $value ) || ! preg_match( '/^(\d{4})-(\d{2})-(\d{2})$/D', (string) $value, $parts ) ) { return ''; }
+	return checkdate( (int) $parts[2], (int) $parts[3], (int) $parts[1] ) ? (string) $value : '';
+}
+
 
 /**
  * Add a role to a user without replacing their existing roles.

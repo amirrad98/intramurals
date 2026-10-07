@@ -232,8 +232,8 @@ class Admin {
 		add_submenu_page( 'leagueflow', __( 'Overview', 'leagueflow' ), __( 'Overview', 'leagueflow' ), 'edit_posts', 'leagueflow', array( $this, 'render_dashboard_page' ) );
 		add_submenu_page( 'leagueflow', __( 'Sports', 'leagueflow' ), __( 'Sports', 'leagueflow' ), 'manage_options', 'leagueflow-sports', array( $this, 'render_sports_page' ) );
 		add_submenu_page( 'leagueflow', __( 'League Levels', 'leagueflow' ), __( 'League Levels', 'leagueflow' ), 'manage_categories', 'edit-tags.php?taxonomy=lf_league_level&post_type=lf_match' );
-		add_submenu_page( 'leagueflow', __( 'Fixtures', 'leagueflow' ), __( 'Fixtures', 'leagueflow' ), 'edit_posts', 'leagueflow-fixtures', array( $this, 'render_fixtures_page' ) );
-		add_submenu_page( 'leagueflow', __( 'Field Availability', 'leagueflow' ), __( 'Field Availability', 'leagueflow' ), 'edit_posts', 'leagueflow-fields', array( $this, 'render_field_availability_page' ) );
+		add_submenu_page( 'leagueflow', __( 'Fixtures', 'leagueflow' ), __( 'Fixtures', 'leagueflow' ), 'leagueflow_manage_fixtures', 'leagueflow-fixtures', array( $this, 'render_fixtures_page' ) );
+		add_submenu_page( 'leagueflow', __( 'Field Availability', 'leagueflow' ), __( 'Field Availability', 'leagueflow' ), 'leagueflow_manage_field_availability', 'leagueflow-fields', array( $this, 'render_field_availability_page' ) );
 		add_submenu_page( 'leagueflow', __( 'Placement Requests', 'leagueflow' ), __( 'Placements', 'leagueflow' ), 'leagueflow_manage_placements', 'leagueflow-placements', array( $this, 'render_placements_page' ) );
 		add_submenu_page( 'leagueflow', __( 'Utilities', 'leagueflow' ), __( 'Utilities', 'leagueflow' ), 'manage_options', 'leagueflow-utilities', array( $this, 'render_utilities_page' ) );
 		add_submenu_page( 'leagueflow', __( 'Settings', 'leagueflow' ), __( 'Settings', 'leagueflow' ), 'manage_options', 'leagueflow-settings', array( $this, 'render_settings_page' ) );
@@ -265,13 +265,13 @@ class Admin {
 			add_submenu_page( $menu_slug, __( 'Join Requests', 'leagueflow' ), __( 'Join Requests', 'leagueflow' ), 'edit_posts', 'edit.php?post_type=lf_join_request&lf_sport=' . $sport_slug );
 			add_submenu_page( $menu_slug, __( 'Matches', 'leagueflow' ), __( 'Matches', 'leagueflow' ), 'edit_posts', 'edit.php?post_type=lf_match&lf_sport=' . $sport_slug );
 			add_submenu_page( $menu_slug, __( 'Add Match', 'leagueflow' ), __( 'Add Match', 'leagueflow' ), 'edit_posts', 'post-new.php?post_type=lf_match&lf_sport=' . $sport_slug );
-			add_submenu_page( $menu_slug, __( 'Field Availability', 'leagueflow' ), __( 'Field Availability', 'leagueflow' ), 'edit_posts', $menu_slug . '-fields', array( $this, 'render_field_availability_page' ) );
+			add_submenu_page( $menu_slug, __( 'Field Availability', 'leagueflow' ), __( 'Field Availability', 'leagueflow' ), 'leagueflow_manage_field_availability', $menu_slug . '-fields', array( $this, 'render_field_availability_page' ) );
 			add_submenu_page( $menu_slug, __( 'Calendar Events', 'leagueflow' ), __( 'Calendar Events', 'leagueflow' ), 'edit_posts', 'edit.php?post_type=lf_calendar_event&lf_sport=' . $sport_slug );
 			add_submenu_page( $menu_slug, __( 'Add Calendar Event', 'leagueflow' ), __( 'Add Event', 'leagueflow' ), 'edit_posts', 'post-new.php?post_type=lf_calendar_event&lf_sport=' . $sport_slug );
 			add_submenu_page( $menu_slug, __( 'League Levels', 'leagueflow' ), __( 'League Levels', 'leagueflow' ), 'manage_categories', 'edit-tags.php?taxonomy=lf_league_level&post_type=lf_match&lf_sport=' . $sport_slug );
 			add_submenu_page( $menu_slug, __( 'Competitions', 'leagueflow' ), __( 'Competitions', 'leagueflow' ), 'manage_categories', 'edit-tags.php?taxonomy=lf_competition&post_type=lf_match&lf_sport=' . $sport_slug );
 			add_submenu_page( $menu_slug, __( 'Seasons', 'leagueflow' ), __( 'Seasons', 'leagueflow' ), 'manage_categories', 'edit-tags.php?taxonomy=lf_season&post_type=lf_match&lf_sport=' . $sport_slug );
-			add_submenu_page( $menu_slug, __( 'Fixtures', 'leagueflow' ), __( 'Fixtures', 'leagueflow' ), 'edit_posts', $menu_slug . '-fixtures', array( $this, 'render_fixtures_page' ) );
+			add_submenu_page( $menu_slug, __( 'Fixtures', 'leagueflow' ), __( 'Fixtures', 'leagueflow' ), 'leagueflow_manage_fixtures', $menu_slug . '-fixtures', array( $this, 'render_fixtures_page' ) );
 			add_submenu_page( $menu_slug, __( 'Standings', 'leagueflow' ), __( 'Standings', 'leagueflow' ), 'edit_posts', $menu_slug . '-standings', array( $this, 'render_standings_page' ) );
 			add_submenu_page( $menu_slug, __( 'Knockout Brackets', 'leagueflow' ), __( 'Knockout Brackets', 'leagueflow' ), 'edit_posts', $menu_slug . '-brackets', array( $this, 'render_brackets_page' ) );
 		}
@@ -846,6 +846,10 @@ class Admin {
 	 * @return void
 	 */
 	public function render_field_availability_page() {
+		if ( ! current_user_can( 'leagueflow_manage_field_availability' ) ) {
+			wp_die( esc_html__( 'You do not have permission to do that.', 'leagueflow' ), '', array( 'response' => 403 ) );
+		}
+
 		$page            = $this->get_current_page_slug();
 		$is_sport_locked = 0 === strpos( $page, 'leagueflow-sport-' );
 		$sport_slug      = $is_sport_locked ? $this->get_current_requested_sport_slug() : sanitize_key( wp_unslash( $_GET['sport'] ?? '' ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
@@ -924,6 +928,8 @@ class Admin {
 	 * @return void
 	 */
 	protected function render_field_availability_form( $availability, $sport_slug, $page ) {
+		if ( ! current_user_can( 'leagueflow_manage_field_availability' ) ) { return; }
+
 		$availability = wp_parse_args(
 			is_array( $availability ) ? $availability : array(),
 			array(
@@ -1114,6 +1120,8 @@ class Admin {
 	 * @return void
 	 */
 	protected function render_auto_schedule_form( $sport_slug, $page, $is_sport_locked ) {
+		if ( ! current_user_can( 'leagueflow_manage_schedule' ) ) { return; }
+
 		$today          = current_time( 'Y-m-d' );
 		$default_to     = wp_date( 'Y-m-d', strtotime( '+90 days', current_time( 'timestamp' ) ) );
 		$competitions   = $this->get_term_options_for_sport( 'lf_competition', $sport_slug );
@@ -1448,6 +1456,10 @@ class Admin {
 	 * @return void
 	 */
 	public function render_fixtures_page() {
+		if ( ! current_user_can( 'leagueflow_manage_fixtures' ) ) {
+			wp_die( esc_html__( 'You do not have permission to do that.', 'leagueflow' ), '', array( 'response' => 403 ) );
+		}
+
 		$competition_id  = resolve_term_id( $_GET['competition'] ?? '', 'lf_competition' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		$season_id       = resolve_term_id( $_GET['season'] ?? '', 'lf_season' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		$league_level_id = resolve_term_id( $_GET['league_level'] ?? '', 'lf_league_level' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
@@ -1534,8 +1546,8 @@ class Admin {
 	 * @return void
 	 */
 	public function handle_generate_fixtures() {
-		if ( ! current_user_can( 'edit_posts' ) ) {
-			wp_die( esc_html__( 'You do not have permission to do that.', 'leagueflow' ) );
+		if ( ! current_user_can( 'leagueflow_manage_fixtures' ) ) {
+			wp_die( esc_html__( 'You do not have permission to do that.', 'leagueflow' ), '', array( 'response' => 403 ) );
 		}
 
 		check_admin_referer( 'leagueflow_generate_fixtures', 'leagueflow_generate_fixtures_nonce' );
@@ -1727,9 +1739,10 @@ class Admin {
 				<th scope="row"><label for="lf_email"><?php esc_html_e( 'Player Email', 'leagueflow' ); ?></label></th>
 				<td>
 					<input type="email" id="lf_email" name="lf_email" class="regular-text" value="<?php echo esc_attr( (string) get_post_meta( $post->ID, 'lf_email', true ) ); ?>" />
-					<p class="description"><?php esc_html_e( 'Optional. Random portal logins can be generated without a real email address.', 'leagueflow' ); ?></p>
+					<p class="description"><?php esc_html_e( 'A valid, unused email address is required when creating a new portal account.', 'leagueflow' ); ?></p>
 				</td>
 			</tr>
+			<?php if ( can_manage_player_accounts() ) : ?>
 			<tr>
 				<th scope="row"><label for="lf_user_id"><?php esc_html_e( 'Linked User', 'leagueflow' ); ?></label></th>
 				<td>
@@ -1745,16 +1758,17 @@ class Admin {
 							?>
 						</p>
 					<?php endif; ?>
-					<p class="description"><?php esc_html_e( 'Use the checkbox below to generate or reset this player login.', 'leagueflow' ); ?></p>
+					<p class="description"><?php esc_html_e( 'Existing account passwords are managed through WordPress, not player saves.', 'leagueflow' ); ?></p>
 				</td>
 			</tr>
 			<tr>
 				<th scope="row"><?php esc_html_e( 'Player Login', 'leagueflow' ); ?></th>
 				<td>
-					<label><input type="checkbox" name="lf_generate_player_login" value="1" /> <?php esc_html_e( 'Generate or reset a random portal login on save', 'leagueflow' ); ?></label>
-					<p class="description"><?php esc_html_e( 'After saving, WordPress will show the generated username and temporary password once. Give those credentials to the player.', 'leagueflow' ); ?></p>
+					<label><input type="checkbox" name="lf_generate_player_login" value="1" /> <?php esc_html_e( 'Create a new portal account on save', 'leagueflow' ); ?></label>
+					<p class="description"><?php esc_html_e( 'WordPress emails the new player a single-use link to set their password. Existing passwords are never reset here.', 'leagueflow' ); ?></p>
 				</td>
 			</tr>
+			<?php endif; ?>
 			<tr>
 				<th scope="row"><?php esc_html_e( 'Team Memberships', 'leagueflow' ); ?></th>
 				<td>
@@ -2168,8 +2182,9 @@ class Admin {
 			return;
 		}
 
-		$this->save_player_identity_meta( $post_id );
-		$this->maybe_generate_player_login( $post_id );
+		if ( $this->save_player_identity_meta( $post_id ) ) {
+			$this->maybe_generate_player_login( $post_id );
+		}
 
 		$current_team_ids = get_player_team_ids( $post_id );
 		$submitted        = isset( $_POST['lf_player_memberships'] ) && is_array( $_POST['lf_player_memberships'] )
@@ -2336,6 +2351,11 @@ class Admin {
 		$winner_team   = isset( $_POST['lf_winner_team_id'] ) ? absint( wp_unslash( $_POST['lf_winner_team_id'] ) ) : 0;
 		$next_match_id = isset( $_POST['lf_next_match_id'] ) ? absint( wp_unslash( $_POST['lf_next_match_id'] ) ) : 0;
 		$next_slot     = sanitize_key( wp_unslash( $_POST['lf_next_match_slot'] ?? 'home' ) );
+
+		if ( $next_match_id && ! $this->knockout_service->can_advance_to( $post_id, $next_match_id, array( 'lf_sport' => $match_sport_id ? array( $match_sport_id ) : array(), 'lf_league_level' => $match_level_id ? array( $match_level_id ) : array() ), absint( $_POST['lf_round_order'] ?? 0 ) ) ) {
+			$this->queue_notice( __( 'Choose an editable next match in the same bracket context with a forward, acyclic path.', 'leagueflow' ), 'error' );
+			return;
+		}
 
 		if ( $winner_team && ! in_array( $winner_team, array( $home_team_id, $away_team_id ), true ) ) {
 			$winner_team = 0;
@@ -3081,13 +3101,6 @@ class Admin {
 	 * @return string
 	 */
 	public function handle_match_bulk_actions( $redirect_to, $doaction, $post_ids ) {
-		$post_ids = array_values( array_filter( array_unique( array_map( 'absint', (array) $post_ids ) ), static function( $post_id ) {
-			return 'lf_match' === get_post_type( $post_id ) && current_user_can( 'edit_post', $post_id );
-		} ) );
-		if ( empty( $post_ids ) ) {
-			return $redirect_to;
-		}
-
 		if ( 'leagueflow_auto_schedule' === $doaction ) {
 			$result = $this->field_availability_manager->schedule_matches(
 				array(
@@ -3100,6 +3113,12 @@ class Admin {
 			$this->store_schedule_result( $result );
 
 			return add_query_arg( 'leagueflow_schedule_complete', 1, $redirect_to );
+		}
+		$post_ids = array_values( array_filter( array_unique( array_map( 'absint', (array) $post_ids ) ), static function( $post_id ) {
+			return 'lf_match' === get_post_type( $post_id ) && current_user_can( 'edit_post', $post_id );
+		} ) );
+		if ( empty( $post_ids ) ) {
+			return $redirect_to;
 		}
 
 		if ( 0 !== strpos( $doaction, 'leagueflow_set_status_' ) ) {
@@ -3272,20 +3291,8 @@ class Admin {
 			echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Sports updated successfully.', 'leagueflow' ) . '</p></div>';
 		}
 
-		$credential_transient_key = 'leagueflow_player_credentials_' . get_current_user_id();
-		$credentials              = get_transient( $credential_transient_key );
-
-		if ( is_array( $credentials ) && ! empty( $credentials['username'] ) && ! empty( $credentials['password'] ) ) {
-			delete_transient( $credential_transient_key );
-			printf(
-				'<div class="notice notice-success"><p><strong>%1$s</strong></p><p>%2$s</p><p><code>%3$s</code></p><p><code>%4$s</code></p><p>%5$s</p></div>',
-				esc_html__( 'Player portal login generated.', 'leagueflow' ),
-				esc_html( $credentials['player'] ?? '' ),
-				esc_html( sprintf( 'Username: %s', $credentials['username'] ) ),
-				esc_html( sprintf( 'Temporary password: %s', $credentials['password'] ) ),
-				esc_html( sprintf( 'Portal: %s', wp_login_url( home_url( '/portal/' ) ) ) )
-			);
-		}
+		// Discard legacy credential notices without ever rendering a cleartext password.
+		delete_transient( 'leagueflow_player_credentials_' . get_current_user_id() );
 
 		$transient_key = 'leagueflow_notices_' . get_current_user_id();
 		$notices       = get_transient( $transient_key );
@@ -3369,8 +3376,8 @@ class Admin {
 	 * @return void
 	 */
 	public function handle_save_field_availability() {
-		if ( ! current_user_can( 'edit_posts' ) ) {
-			wp_die( esc_html__( 'You do not have permission to do that.', 'leagueflow' ) );
+		if ( ! current_user_can( 'leagueflow_manage_field_availability' ) ) {
+			wp_die( esc_html__( 'You do not have permission to do that.', 'leagueflow' ), '', array( 'response' => 403 ) );
 		}
 
 		check_admin_referer( 'leagueflow_save_field_availability', 'leagueflow_save_field_availability_nonce' );
@@ -3412,8 +3419,8 @@ class Admin {
 	 * @return void
 	 */
 	public function handle_delete_field_availability() {
-		if ( ! current_user_can( 'edit_posts' ) ) {
-			wp_die( esc_html__( 'You do not have permission to do that.', 'leagueflow' ) );
+		if ( ! current_user_can( 'leagueflow_manage_field_availability' ) ) {
+			wp_die( esc_html__( 'You do not have permission to do that.', 'leagueflow' ), '', array( 'response' => 403 ) );
 		}
 
 		$availability_id = sanitize_key( wp_unslash( $_GET['availability_id'] ?? '' ) );
@@ -3440,8 +3447,8 @@ class Admin {
 	 * @return void
 	 */
 	public function handle_auto_schedule_matches() {
-		if ( ! current_user_can( 'edit_posts' ) ) {
-			wp_die( esc_html__( 'You do not have permission to do that.', 'leagueflow' ) );
+		if ( ! current_user_can( 'leagueflow_manage_schedule' ) ) {
+			wp_die( esc_html__( 'You do not have permission to do that.', 'leagueflow' ), '', array( 'response' => 403 ) );
 		}
 
 		check_admin_referer( 'leagueflow_auto_schedule_matches', 'leagueflow_auto_schedule_matches_nonce' );
@@ -3683,62 +3690,38 @@ class Admin {
 	 * @return void
 	 */
 	protected function maybe_generate_player_login( $post_id ) {
-		if ( empty( $_POST['lf_generate_player_login'] ) ) {
+		if ( empty( $_POST['lf_generate_player_login'] ) || ! can_manage_player_accounts()
+			|| ! current_user_can( 'create_users' ) || ! current_user_can( 'edit_post', $post_id ) ) {
 			return;
 		}
-
 		$player = get_post( $post_id );
-
 		if ( ! $player instanceof \WP_Post || 'lf_player' !== $player->post_type ) {
 			return;
 		}
-
-		$password = wp_generate_password( 12, false );
-		$user_id  = (int) get_post_meta( $post_id, 'lf_user_id', true );
-		$user     = $user_id ? get_user_by( 'id', $user_id ) : false;
-
-		if ( $user instanceof \WP_User ) {
-			wp_set_password( $password, $user_id );
-			add_user_role_if_missing( $user_id, 'leagueflow_player' );
-			$username = $user->user_login;
-		} else {
-			$username = $this->get_unique_player_username( $post_id );
-			$email    = $this->get_unique_player_login_email( $post_id );
-			$user_id  = wp_insert_user(
-				array(
-					'user_login'   => $username,
-					'user_pass'    => $password,
-					'user_email'   => $email,
-					'display_name' => $player->post_title,
-					'nickname'     => $player->post_title,
-					'role'         => 'leagueflow_player',
-				)
-			);
-
-			if ( is_wp_error( $user_id ) ) {
-				$this->queue_notice(
-					'error',
-					sprintf(
-						/* translators: %s: error message */
-						__( 'Could not generate player login: %s', 'leagueflow' ),
-						$user_id->get_error_message()
-					)
-				);
-				return;
-			}
-
-			update_post_meta( $post_id, 'lf_user_id', absint( $user_id ) );
+		if ( get_post_meta( $post_id, 'lf_user_id', true ) ) {
+			$this->queue_notice( __( 'This player already has an account. Use WordPress password recovery for existing accounts.', 'leagueflow' ), 'warning' );
+			return;
 		}
-
-		set_transient(
-			'leagueflow_player_credentials_' . get_current_user_id(),
-			array(
-				'player'   => get_the_title( $post_id ),
-				'username' => $username,
-				'password' => $password,
-			),
-			MINUTE_IN_SECONDS
-		);
+		$email = sanitize_email( get_post_meta( $post_id, 'lf_email', true ) );
+		if ( ! is_email( $email ) || email_exists( $email ) ) {
+			$this->queue_notice( __( 'Provide a valid, unused email address to create a new portal account.', 'leagueflow' ), 'error' );
+			return;
+		}
+		$user_id = wp_insert_user( array(
+			'user_login' => $this->get_unique_player_username( $post_id ),
+			'user_pass' => wp_generate_password( 32, true, true ),
+			'user_email' => $email,
+			'display_name' => $player->post_title,
+			'nickname' => $player->post_title,
+			'role' => 'leagueflow_player',
+		) );
+		if ( is_wp_error( $user_id ) ) {
+			$this->queue_notice( $user_id->get_error_message(), 'error' );
+			return;
+		}
+		update_post_meta( $post_id, 'lf_user_id', (int) $user_id );
+		wp_new_user_notification( $user_id, null, 'user' );
+		$this->queue_notice( __( 'Portal account created. WordPress has requested a password-setup email for the player.', 'leagueflow' ), 'success' );
 	}
 
 	/**
@@ -3761,52 +3744,38 @@ class Admin {
 	}
 
 	/**
-	 * Build a unique generated email for player login accounts.
-	 *
-	 * @param int $post_id Player post ID.
-	 * @return string
-	 */
-	protected function get_unique_player_login_email( $post_id ) {
-		$stored_email = sanitize_email( get_post_meta( $post_id, 'lf_email', true ) );
-
-		if ( is_email( $stored_email ) && ! email_exists( $stored_email ) ) {
-			return $stored_email;
-		}
-
-		$email  = 'leagueflow-player-' . absint( $post_id ) . '@example.invalid';
-		$suffix = 2;
-
-		while ( email_exists( $email ) ) {
-			$email = 'leagueflow-player-' . absint( $post_id ) . '-' . $suffix . '@example.invalid';
-			$suffix++;
-		}
-
-		return $email;
-	}
-
-	/**
 	 * Save player email and linked user metadata.
 	 *
 	 * @param int $post_id Player post ID.
-	 * @return void
+	 * @return bool Whether account provisioning may continue.
 	 */
 	protected function save_player_identity_meta( $post_id ) {
-		$email   = sanitize_email( wp_unslash( $_POST['lf_email'] ?? '' ) );
-		$user_id = isset( $_POST['lf_user_id'] ) ? absint( wp_unslash( $_POST['lf_user_id'] ) ) : 0;
-		$user    = $user_id ? get_user_by( 'id', $user_id ) : false;
-
-		if ( $user instanceof \WP_User ) {
-			update_post_meta( $post_id, 'lf_user_id', $user_id );
-			add_user_role_if_missing( $user_id, 'leagueflow_player' );
-		} else {
-			delete_post_meta( $post_id, 'lf_user_id' );
-		}
-
+		$email = sanitize_email( wp_unslash( $_POST['lf_email'] ?? '' ) );
 		if ( is_email( $email ) ) {
 			update_post_meta( $post_id, 'lf_email', strtolower( $email ) );
 		} else {
 			delete_post_meta( $post_id, 'lf_email' );
 		}
+		if ( ! can_manage_player_accounts() ) {
+			return false;
+		}
+		if ( ! array_key_exists( 'lf_user_id', $_POST ) ) {
+			return true;
+		}
+		$user_id = absint( wp_unslash( $_POST['lf_user_id'] ) );
+		$old_id = (int) get_post_meta( $post_id, 'lf_user_id', true );
+		if ( ( $user_id && ! can_link_player_account( $user_id ) )
+			|| ( $old_id && $old_id !== $user_id && ( ! current_user_can( 'edit_user', $old_id ) || ! current_user_can( 'promote_user', $old_id ) ) ) ) {
+			$this->queue_notice( __( 'Only authorized, low-privilege portal accounts can be linked to players.', 'leagueflow' ), 'error' );
+			return false;
+		}
+		if ( $user_id ) {
+			update_post_meta( $post_id, 'lf_user_id', $user_id );
+			add_user_role_if_missing( $user_id, 'leagueflow_player' );
+		} else {
+			delete_post_meta( $post_id, 'lf_user_id' );
+		}
+		return true;
 	}
 
 	/**
@@ -3934,6 +3903,7 @@ class Admin {
 		}
 
 		foreach ( $this->get_portal_user_options() as $user_id => $label ) {
+			if ( 'lf_user_id' === $id && ! can_link_player_account( $user_id ) ) { continue; }
 			printf(
 				'<option value="%1$s" %2$s>%3$s</option>',
 				esc_attr( (string) $user_id ),
