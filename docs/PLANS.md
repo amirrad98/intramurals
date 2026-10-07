@@ -94,7 +94,8 @@ Audit records and traceability stay outside the distributable ZIP.
 - `python3 scripts/build.py` builds the tested ZIP; WP-CLI installs and activates
   it, then runs `wp eval-file tests/wordpress-update.php` in that disposable site.
   The script uses real WordPress update hooks, plugin details, HTTP API and
-  `Plugin_Upgrader`, with controlled release/ZIP transport through
+  `Plugin_Upgrader::bulk_upgrade()` with `WP_Ajax_Upgrader_Skin`, matching
+  WordPress's dashboard update handler, with controlled release/ZIP transport through
   `pre_http_request`. It fabricates a next-version ZIP from the built package.
 - Nonzero exit is required for assertion failures. Assert update discovery and
   details, rejection of a tampered ZIP with installed-file hashes unchanged, an

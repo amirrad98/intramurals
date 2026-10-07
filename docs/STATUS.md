@@ -26,3 +26,10 @@
   `WP_Ajax_Upgrader_Skin`, which collects upgrade errors; checksum rejection remains
   mandatory. Updated pinned official Actions to v6 and fixed Ubuntu to 24.04
   after runner deprecation warnings. Native rerun remains pending.
+- Corrected branch run `37550187505` passed PHP/package, native discovery,
+  details, tamper rejection and verified installation. Native preservation failed
+  because direct `Plugin_Upgrader::upgrade()` deactivates active plugins outside
+  cron. Changed the harness to `bulk_upgrade()` with `WP_Ajax_Upgrader_Skin`,
+  exactly as WordPress's `wp_ajax_update_plugin()` dashboard handler does. Real
+  error, installation, active-folder and database assertions remain mandatory;
+  rerun and milestone acceptance remain pending.
