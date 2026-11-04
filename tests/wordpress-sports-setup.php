@@ -256,6 +256,23 @@ try {
 	$edit_event( $event, array( 'lf_sport_choice' => 'volleyball', 'tax_input' => array( 'lf_competition' => get_term( $cup )->name, 'lf_season' => get_term( $season )->name ) ) );
 	lfss_check( $original_context === $event_context( $event ), 'The classic editor can explicitly repair an unscoped legacy event.' );
 
+	// Drop-in is a standalone calendar activity, not a sport taxonomy term.
+	$edit_event( $event, array(
+		'lf_sport_choice' => 'drop_in', 'lf_event_type' => 'practice',
+		'tax_input' => array( 'lf_competition' => get_term( $cup )->name, 'lf_season' => get_term( $season )->name ),
+	) );
+	lfss_check( array( 'lf_sport' => array(), 'lf_competition' => array(), 'lf_season' => array() ) === $event_context( $event )
+		&& 'drop_in' === get_post_meta( $event, 'lf_event_type', true ),
+		'Choosing Drop-in clears existing sport/competition/season and enforces the Drop-in event type.' );
+	$unscoped = leagueflow()->renderer()->get_calendar_page( array( 'source' => 'event', 'event_type' => 'drop_in', 'start_date' => '2033-06-12', 'end_date' => '2033-06-12', 'limit' => 100, 'public_only' => true ) );
+	lfss_check( in_array( $event, array_column( $unscoped['items'], 'postId' ), true ), 'Standalone drop-in remains visible on the all-sports event calendar.' );
+	$scoped = leagueflow()->renderer()->get_calendar_page( array( 'source' => 'event', 'sport' => 'volleyball', 'start_date' => '2033-06-12', 'end_date' => '2033-06-12', 'limit' => 100, 'public_only' => true ) );
+	lfss_check( ! in_array( $event, array_column( $scoped['items'], 'postId' ), true ), 'Standalone drop-in does not masquerade as a volleyball event.' );
+	$edit_event( $event, array( 'lf_sport_choice' => 'volleyball', 'lf_event_type' => 'practice', 'tax_input' => array(
+		'lf_competition' => get_term( $cup )->name, 'lf_season' => get_term( $season )->name,
+	) ) );
+	lfss_check( $original_context === $event_context( $event ) && 'practice' === get_post_meta( $event, 'lf_event_type', true ), 'An event can return from standalone Drop-in to a real sport and matching league context.' );
+
 	// Capture every event/term created during these API tests, including failures.
 	$capture_event = static function ( $id, $post ) use ( &$posts ) {
 		if ( 'lf_calendar_event' === $post->post_type ) { $posts[] = $id; }
