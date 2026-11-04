@@ -174,7 +174,7 @@ jobs:
         shell: bash
         run: |
           current="$(python3 -c 'from scripts.build import ROOT, metadata; print(metadata(ROOT)["version"])')"
-          previous="$(git show HEAD^:leagueflow.php | sed -n 's/^ \\* Version: //p' | head -n 1)"
+          previous="$(git show HEAD^:leagueflow.php | sed -n 's/^ [*] Version: //p' | head -n 1)"
           if [ "$current" != "$previous" ]; then
             echo "release_tag=v$current" >> "$GITHUB_OUTPUT"
           fi
