@@ -39,7 +39,7 @@ for ( $index = 0; $index < $zip->numFiles; ++$index ) {
 	$fixture->addFromString( $name, $contents );
 }
 $zip->close(); $fixture->close();
-$repo = 'https://github.com/ahzs645/leugueflow';
+$repo = 'https://github.com/amirrad98/intramurals';
 $package = $repo . '/releases/download/v' . $next . '/leagueflow-' . $next . '.zip';
 $manifest = array( 'schema' => 1, 'slug' => 'leagueflow', 'version' => $next,
 	'sha256' => hash_file( 'sha256', $fixture_zip ), 'package' => $package, 'requires' => '6.5', 'requires_php' => '8.1' );
