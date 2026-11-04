@@ -13,6 +13,9 @@ defined( 'ABSPATH' ) || exit;
  * Taxonomy registration.
  */
 class Taxonomies {
+	/** Calendar-only selector value for an unscoped drop-in activity (not a sport term). */
+	public const STANDALONE_DROP_IN = 'drop_in';
+
 	/** Original event assignments while core saves a classic editor request. */
 	protected static $editor_event_context = array();
 
@@ -113,10 +116,11 @@ class Taxonomies {
 	}
 
 	/** Validate the resulting event context, preserving untouched legacy values. */
-	protected static function validate_event_context( $candidate, $existing ) {
+	protected static function validate_event_context( $candidate, $existing, $allow_standalone_drop_in = false ) {
 		$sport_changed = $candidate['lf_sport'] !== $existing['lf_sport'];
 		$sport = 1 === count( $candidate['lf_sport'] ) ? get_term( $candidate['lf_sport'][0], 'lf_sport' ) : null;
-		if ( $sport_changed && ( ! $sport instanceof \WP_Term || ! in_array( $sport->slug, ( new Sports_Manager() )->get_enabled_sport_slugs(), true ) ) ) {
+		$standalone = $allow_standalone_drop_in && ! $candidate['lf_sport'] && ! $candidate['lf_competition'] && ! $candidate['lf_season'];
+		if ( $sport_changed && ! $standalone && ( ! $sport instanceof \WP_Term || ! in_array( $sport->slug, ( new Sports_Manager() )->get_enabled_sport_slugs(), true ) ) ) {
 			return new \WP_Error( 'leagueflow_event_sport_invalid', __( 'That sport is not enabled. Choose one enabled sport; the event’s sport and context were not changed.', 'leagueflow' ), array( 'status' => 400 ) );
 		}
 		foreach ( array( 'lf_competition', 'lf_season' ) as $taxonomy ) {
@@ -171,15 +175,24 @@ class Taxonomies {
 		$candidate = $existing;
 		$error = null;
 		$has_choice = is_string( $nonce ) && wp_verify_nonce( sanitize_text_field( wp_unslash( $nonce ) ), 'leagueflow_save_calendar_event' ) && null !== $choice;
+		$standalone = false;
 		if ( $has_choice ) {
 			if ( ! is_string( $choice ) ) {
 				$error = new \WP_Error( 'leagueflow_event_sport_invalid', __( 'Invalid event sport selection. The previous sport and context were kept.', 'leagueflow' ) );
+			} elseif ( self::STANDALONE_DROP_IN === sanitize_key( wp_unslash( $choice ) ) ) {
+				// Drop-ins without a sport appear on the all-sports calendar. Never create a fake sport term.
+				$standalone = true;
+				$candidate['lf_sport'] = array();
+				$candidate['lf_competition'] = array();
+				$candidate['lf_season'] = array();
 			} elseif ( '' !== trim( $choice ) ) {
 				$sport = get_term_by( 'slug', sanitize_key( wp_unslash( $choice ) ), 'lf_sport' );
 				$candidate['lf_sport'] = $sport instanceof \WP_Term ? array( (int) $sport->term_id ) : array( 0 );
 			}
 		}
 		foreach ( array( 'lf_sport', 'lf_competition', 'lf_season' ) as $taxonomy ) {
+			// Old competition/season tag fields cannot re-scope a standalone drop-in.
+			if ( $standalone && in_array( $taxonomy, array( 'lf_competition', 'lf_season' ), true ) ) { continue; }
 			if ( ! array_key_exists( $taxonomy, $input ) ) { continue; }
 			$values = $input[$taxonomy];
 			$malformed = false;
@@ -201,7 +214,7 @@ class Taxonomies {
 				$candidate[$taxonomy] = $ids;
 			}
 		}
-		$valid = $error ?: self::validate_event_context( $candidate, $existing );
+		$valid = $error ?: self::validate_event_context( $candidate, $existing, $standalone );
 		$plan = array( 'signature' => $signature, 'existing' => $existing, 'candidate' => $candidate, 'error' => is_wp_error( $valid ) ? $valid : null );
 		self::$editor_event_context[$post_id] = $plan;
 		return $plan;
