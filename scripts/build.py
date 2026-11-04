@@ -8,7 +8,7 @@ import re
 from zipfile import ZipFile, ZipInfo, ZIP_STORED
 
 ROOT = Path(__file__).resolve().parents[1]
-REPOSITORY = "https://github.com/ahzs645/leugueflow"
+REPOSITORY = "https://github.com/amirrad98/intramurals"
 VERSION = r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
 ROOT_FILES = ("leagueflow.php", "uninstall.php", "README.md", "ARCHITECTURE.md", "SPORTS.md")
 RUNTIME = {
