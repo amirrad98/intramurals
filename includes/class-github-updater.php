@@ -11,7 +11,7 @@ defined( 'ABSPATH' ) || exit;
 
 final class GitHub_Updater {
 
-	private const REPOSITORY = 'https://github.com/ahzs645/leugueflow';
+	private const REPOSITORY = 'https://github.com/amirrad98/intramurals';
 	private const VERSION_PATTERN = '(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)';
 
 	public static function register() {
