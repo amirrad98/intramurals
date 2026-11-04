@@ -3758,6 +3758,12 @@ class Admin {
 	 */
 	protected function save_calendar_event_sport_choice( $post_id, $context ) {
 		$save_error = new \WP_Error( 'leagueflow_event_context_not_saved', __( 'The event sport and context could not be saved together. Their previous assignments were kept; please try again.', 'leagueflow' ) );
+		if ( Taxonomies::STANDALONE_DROP_IN === $this->get_submitted_sport_choice() ) {
+			// WordPress may omit tag-box values entirely. Explicitly clear stale scope for standalone activities.
+			foreach ( array( 'lf_competition', 'lf_season' ) as $taxonomy ) {
+				if ( is_wp_error( wp_set_object_terms( $post_id, array(), $taxonomy, false ) ) ) { return $save_error; }
+			}
+		}
 		foreach ( array( 'lf_competition', 'lf_season' ) as $taxonomy ) {
 			$ids = wp_get_object_terms( $post_id, $taxonomy, array( 'fields' => 'ids' ) );
 			if ( is_wp_error( $ids ) ) { return $save_error; }
