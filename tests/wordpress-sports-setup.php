@@ -360,6 +360,8 @@ try {
 	$fields = new \LeagueFlow\Field_Availability_Manager();
 	$knockout = new \LeagueFlow\Knockout_Service();
 	$admin = new LFSS_Admin( $standings, $knockout, new \LeagueFlow\Renderer( $standings, $knockout, $sports ), new \LeagueFlow\Seeder(), $sports, new \LeagueFlow\Exporter( $sports ), $fields, new \LeagueFlow\Fixture_Generator( $fields ) );
+	ob_start(); $admin->render_calendar_event_metabox( get_post( $event ) ); $event_html = ob_get_clean();
+	lfss_check( false !== strpos( $event_html, 'value="drop_in"' ) && false !== strpos( $event_html, 'Drop-in (all sports)' ), 'The Calendar Event sport/activity selector offers standalone Drop-in.' );
 	ob_start(); $admin->rules_form( 'volleyball' ); $html = ob_get_clean();
 	$dom = new DOMDocument();
 	@$dom->loadHTML( $html );
