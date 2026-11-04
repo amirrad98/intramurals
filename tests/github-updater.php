@@ -34,11 +34,11 @@ function check( $condition, $message ) {
 }
 function release_fixture( $version = '1.0.3' ) {
 	return array( 'schema' => 1, 'slug' => 'leagueflow', 'version' => $version, 'sha256' => hash( 'sha256', 'verified package fixture' ),
-		'requires' => '6.5', 'requires_php' => '8.1', 'package' => 'https://github.com/ahzs645/leugueflow/releases/download/v' . $version . '/leagueflow-' . $version . '.zip' );
+		'requires' => '6.5', 'requires_php' => '8.1', 'package' => 'https://github.com/amirrad98/intramurals/releases/download/v' . $version . '/leagueflow-' . $version . '.zip' );
 }
 function reset_feed( $body, $code = 200 ) {
 	$GLOBALS['cache'] = array(); $GLOBALS['requests'] = array(); $GLOBALS['ttls'] = array();
-	$GLOBALS['responses'] = array( 'https://github.com/ahzs645/leugueflow/releases/latest/download/latest.json' => array( 'code' => $code, 'body' => is_array( $body ) ? json_encode( $body ) : $body ) );
+	$GLOBALS['responses'] = array( 'https://github.com/amirrad98/intramurals/releases/latest/download/latest.json' => array( 'code' => $code, 'body' => is_array( $body ) ? json_encode( $body ) : $body ) );
 }
 require __DIR__ . '/../includes/class-github-updater.php';
 use LeagueFlow\GitHub_Updater as Updater;
@@ -84,7 +84,7 @@ check( Updater::plugin_information( false, 'plugin_information', (object) array(
 
 // Latest can advance while an administrator is installing the selected older release.
 reset_feed( release_fixture( '1.0.4' ) );
-$pinned_url = 'https://github.com/ahzs645/leugueflow/releases/download/v1.0.3/latest.json';
+$pinned_url = 'https://github.com/amirrad98/intramurals/releases/download/v1.0.3/latest.json';
 $responses[$pinned_url] = array( 'code' => 200, 'body' => json_encode( $manifest ) );
 $package = $manifest['package'];
 $file = Updater::verify_download( false, $package, null, array( 'plugin' => 'leagueflow/leagueflow.php' ) );
