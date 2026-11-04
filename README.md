@@ -60,14 +60,14 @@ the routine workflows inside WordPress.
 ## GitHub releases and WordPress updates
 
 Requires **WordPress 6.5+ and PHP 8.1+**. Download the attached
-`leagueflow-X.Y.Z.zip` from [GitHub Releases](https://github.com/ahzs645/leugueflow/releases).
+`leagueflow-X.Y.Z.zip` from [GitHub Releases](https://github.com/amirrad98/intramurals/releases).
 Install it through **Plugins → Add New → Upload Plugin**. The package contains the
 stable `leagueflow/` directory. Use this asset rather than GitHub's generated source
 archives, which contain development tooling and have a different directory name.
 
 Older builds that do not include the updater, or point at the previous repository,
 must upload the built ZIP once and replace the existing `leagueflow/` installation.
-The 1.1.0 update feed points to **ahzs645/leugueflow**. It can offer automatic updates
+The 1.1.0 update feed points to **amirrad98/intramurals**. It can offer automatic updates
 only after a verified stable release and its assets are published in that repository.
 Branch and pull-request artifacts are review packages, not published stable releases.
 While LeagueFlow is active, later stable releases
