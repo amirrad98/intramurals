@@ -9,7 +9,7 @@ from build import ROOT, metadata
 
 
 class GitHub:
-    repository = "ahzs645/leugueflow"
+    repository = "amirrad98/intramurals"
 
     def api(self, path, payload=None, missing_ok=False):
         command = ["gh", "api", "repos/" + self.repository + "/" + path]
