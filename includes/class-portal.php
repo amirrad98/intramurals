@@ -252,7 +252,7 @@ class Portal {
 			return $this->render_portal_shell( $this->render_player_dashboard( $player_id, $user ) );
 		}
 
-		$content        = '';
+		$content        = $player_id ? $this->render_consent_renewal( $player_id, $user ) : '';
 		$dashboard_view = $this->get_requested_dashboard_view();
 
 		if ( 'player' === $path && $player_id ) {
@@ -452,6 +452,15 @@ class Portal {
 		}
 
 		switch ( $portal_action ) {
+			case 'accept_registration_documents':
+				$consent_player_id = $this->get_player_id_for_user( $user, false );
+				if ( ! $consent_player_id ) {
+					$this->redirect_with_notice( 'player-missing' );
+				}
+				$this->save_registration_consent( $consent_player_id, $user, $this->validate_registration_consent( $consent_player_id, $user ) );
+				$this->redirect_with_notice( 'consent-saved' );
+				break;
+
 			case 'complete_player_onboarding':
 				$this->handle_complete_player_onboarding( $user );
 				break;
@@ -697,6 +706,7 @@ class Portal {
 					<textarea name="lf_player_description" rows="6"><?php echo esc_textarea( $player->post_content ); ?></textarea>
 				</label>
 				<?php echo $this->render_player_sport_level_fields( $player_id ); ?>
+				<?php echo Registration_Consent::render_fields( $player_id, $user->ID ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 				<button type="submit"><?php esc_html_e( 'Save profile', 'leagueflow' ); ?></button>
 			</form>
 
@@ -908,6 +918,7 @@ class Portal {
 				<fieldset class="leagueflow-portal__onboarding-step" data-leagueflow-step="3">
 					<legend class="screen-reader-text"><?php esc_html_e( 'Step 3: Review', 'leagueflow' ); ?></legend>
 					<h3><?php esc_html_e( 'Review your registration', 'leagueflow' ); ?></h3>
+					<?php echo Registration_Consent::render_fields( $player_id, $user->ID ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 					<div class="leagueflow-portal__review" data-leagueflow-onboarding-review>
 						<p><?php esc_html_e( 'Your selected teams will receive approval requests. Staff will handle any placement selections.', 'leagueflow' ); ?></p>
 						<ul data-leagueflow-review-list></ul>
@@ -1139,6 +1150,7 @@ class Portal {
 				<fieldset class="leagueflow-portal__onboarding-step" data-leagueflow-step="<?php echo esc_attr( (string) $review_step ); ?>">
 					<legend class="screen-reader-text"><?php echo esc_html( sprintf( __( 'Step %1$d: Review', 'leagueflow' ), $review_step ) ); ?></legend>
 					<h3><?php esc_html_e( 'Review your team', 'leagueflow' ); ?></h3>
+					<?php echo Registration_Consent::render_fields( $player_id, $user->ID ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 					<div class="leagueflow-portal__review" data-leagueflow-onboarding-review><ul data-leagueflow-review-list></ul></div>
 					<div class="leagueflow-portal__step-actions">
 						<button type="button" class="leagueflow-portal__button--secondary" data-leagueflow-step-back><?php esc_html_e( 'Back', 'leagueflow' ); ?></button>
@@ -1368,6 +1380,7 @@ class Portal {
 				<span><?php esc_html_e( 'Message to team manager', 'leagueflow' ); ?></span>
 				<textarea name="lf_request_note" rows="3" placeholder="<?php echo esc_attr__( 'Optional: share your availability, experience, or preferred role.', 'leagueflow' ); ?>"></textarea>
 			</label>
+			<?php echo Registration_Consent::render_fields( $player_id, $user->ID ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 			<button type="submit"><?php esc_html_e( 'Submit request', 'leagueflow' ); ?></button>
 		</form>
 		<?php
@@ -1439,12 +1452,15 @@ class Portal {
 				$is_placement_request = ! $request_team_id;
 				$note                 = (string) get_post_meta( $request->ID, 'lf_request_note', true );
 				$email                = $player_id ? (string) get_post_meta( $player_id, 'lf_email', true ) : '';
+				$request_info         = Join_Request_Service::shared()->inspect( $request->ID );
+				$request_state        = $request_info ? Join_Request_Service::shared()->state_token( $request_info ) : '';
 				?>
 				<article class="leagueflow-portal-request">
 					<div>
 						<strong><?php echo esc_html( $player_id ? get_the_title( $player_id ) : __( 'Player', 'leagueflow' ) ); ?></strong>
 						<?php if ( $email ) : ?><span><?php echo esc_html( $email ); ?></span><?php endif; ?>
 						<?php if ( $is_placement_request ) : ?><span><?php esc_html_e( 'Needs a team in this sport', 'leagueflow' ); ?></span><?php endif; ?>
+						<?php if ( ! Registration_Consent::is_current( $player_id ) ) : ?><p><?php esc_html_e( 'This player needs to acknowledge the current registration documents in their portal before approval.', 'leagueflow' ); ?></p><?php endif; ?>
 						<?php if ( $note ) : ?><p><?php echo esc_html( $note ); ?></p><?php endif; ?>
 					</div>
 					<div class="leagueflow-portal-request__actions">
@@ -1452,14 +1468,16 @@ class Portal {
 							<?php echo $this->render_hidden_fields( 'review_join_request' ); ?>
 							<input type="hidden" name="lf_join_request_id" value="<?php echo esc_attr( (string) $request->ID ); ?>" />
 							<input type="hidden" name="lf_team_id" value="<?php echo esc_attr( (string) $team_id ); ?>" />
+							<input type="hidden" name="lf_request_state" value="<?php echo esc_attr( $request_state ); ?>" />
 							<input type="hidden" name="lf_join_decision" value="approve" />
-							<button type="submit"><?php echo esc_html( $is_placement_request ? __( 'Add to my roster', 'leagueflow' ) : __( 'Approve', 'leagueflow' ) ); ?></button>
+							<button type="submit" <?php disabled( ! Registration_Consent::is_current( $player_id ) ); ?>><?php echo esc_html( $is_placement_request ? __( 'Add to my roster', 'leagueflow' ) : __( 'Approve', 'leagueflow' ) ); ?></button>
 						</form>
 						<?php if ( ! $is_placement_request ) : ?>
 							<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 								<?php echo $this->render_hidden_fields( 'review_join_request' ); ?>
 								<input type="hidden" name="lf_join_request_id" value="<?php echo esc_attr( (string) $request->ID ); ?>" />
 								<input type="hidden" name="lf_team_id" value="<?php echo esc_attr( (string) $team_id ); ?>" />
+								<input type="hidden" name="lf_request_state" value="<?php echo esc_attr( $request_state ); ?>" />
 								<input type="hidden" name="lf_join_decision" value="decline" />
 								<button type="submit"><?php esc_html_e( 'Decline', 'leagueflow' ); ?></button>
 							</form>
@@ -1632,6 +1650,7 @@ class Portal {
 			$this->redirect_with_notice( 'registration-closed' );
 		}
 
+		$consent_documents = $this->validate_registration_consent( $player_id, $user );
 		$snapshot      = $player_id ? $this->snapshot_player_profile( $player_id ) : array();
 		$is_new_player = ! $player_id;
 
@@ -1678,6 +1697,13 @@ class Portal {
 				$this->restore_player_profile( $player_id, $snapshot );
 			}
 			$this->redirect_with_notice( 'upload-error' );
+		}
+
+		$consent_saved = Registration_Consent::record( $player_id, $user->ID, $consent_documents );
+		if ( is_wp_error( $consent_saved ) ) {
+			if ( $attachment_id ) { wp_delete_attachment( $attachment_id, true ); }
+			if ( $is_new_player ) { wp_delete_post( $player_id, true ); } else { $this->restore_player_profile( $player_id, $snapshot ); }
+			$this->redirect_with_notice( $consent_saved->get_error_code() );
 		}
 
 		$created_requests = array();
@@ -1753,6 +1779,12 @@ class Portal {
 			$this->redirect_with_notice( 'sport-level-required' );
 		}
 
+		$consent_documents = $this->validate_registration_consent( $player_id, $user );
+		$this->save_registration_consent( $player_id, $user, $consent_documents );
+
+		// Store the optional photo first so a rejected upload leaves the profile unchanged.
+		$this->maybe_save_uploaded_image( 'lf_player_photo', $player_id );
+
 		$post_data = array(
 			'ID'           => $player_id,
 			'post_content' => $description,
@@ -1769,7 +1801,6 @@ class Portal {
 			$this->sync_user_display_name( $user, $current_name );
 		}
 
-		$this->maybe_save_uploaded_image( 'lf_player_photo', $player_id );
 		$this->redirect_with_notice( $profile_setup_done ? 'profile-setup-complete' : 'profile-saved' );
 	}
 
@@ -1840,6 +1871,8 @@ class Portal {
 		if ( $this->find_pending_join_request_for_sport( $player_id, $sport_slug ) ) {
 			$this->redirect_with_notice( $is_placement ? 'placement-request-exists' : 'join-request-exists' );
 		}
+
+		$this->save_registration_consent( $player_id, $user, $this->validate_registration_consent( $player_id, $user ) );
 
 		$request_id = $this->create_join_request(
 			$user,
@@ -2051,6 +2084,8 @@ class Portal {
 			$this->redirect_with_notice( 'team-exists' );
 		}
 
+		$consent_documents = $this->validate_registration_consent( $existing_player_id, $user );
+
 		$team_id = wp_insert_post(
 			array(
 				'post_type'    => 'lf_team',
@@ -2096,6 +2131,8 @@ class Portal {
 			);
 		}
 
+		$captain_teams_before = get_player_team_ids( $captain_id );
+
 		if ( ! assign_player_to_team( $captain_id, (int) $team_id, array( 'is_captain' => 1 ) ) ) {
 			wp_delete_post( $team_id, true );
 
@@ -2120,7 +2157,10 @@ class Portal {
 		$player_attachment_id = $preserve_profile ? 0 : $this->save_uploaded_image( 'lf_player_photo', $captain_id );
 		$team_attachment_id   = $this->save_uploaded_image( 'lf_team_logo', $team_id );
 
-		if ( is_wp_error( $player_attachment_id ) || is_wp_error( $team_attachment_id ) ) {
+		$consent_saved = ! is_wp_error( $player_attachment_id ) && ! is_wp_error( $team_attachment_id )
+			? Registration_Consent::record( $captain_id, $user->ID, $consent_documents ) : true;
+
+		if ( is_wp_error( $player_attachment_id ) || is_wp_error( $team_attachment_id ) || is_wp_error( $consent_saved ) ) {
 			if ( is_int( $player_attachment_id ) && $player_attachment_id ) {
 				wp_delete_attachment( $player_attachment_id, true );
 			}
@@ -2146,9 +2186,11 @@ class Portal {
 
 			wp_update_user( $user_snapshot );
 
-			$this->redirect_with_notice( 'upload-error' );
+			$this->redirect_with_notice( is_wp_error( $consent_saved ) ? $consent_saved->get_error_code() : 'upload-error' );
 		}
 
+		// Only after every rollback point: the captain's own matching pending requests close.
+		reconcile_roster_additions( $captain_id, $captain_teams_before, 'portal_roster' );
 		add_user_role_if_missing( $user->ID, 'leagueflow_team_manager' );
 
 		$this->redirect_with_notice(
@@ -2204,28 +2246,36 @@ class Portal {
 			$this->redirect_with_notice( 'team-denied' );
 		}
 
-		if ( 'approve' === $decision ) {
-			if ( $this->player_has_other_team_in_sport( $player_id, $request_sport_slug, $team_id ) ) {
-				$this->redirect_with_notice( 'player-assigned' );
-			}
-
-			if ( ! assign_player_to_team( $player_id, $team_id ) ) {
-				$this->redirect_with_notice( 'invalid-request' );
-			}
-
-			update_post_meta( $request_id, 'lf_request_status', 'approved' );
-			update_post_meta( $request_id, 'lf_team_id', $team_id );
-			$this->notify_player_request_decision( $request_id, 'approved', $team_id );
-			$this->redirect_with_notice( 'join-request-approved' );
+		if ( ! in_array( $decision, array( 'approve', 'decline' ), true ) ) {
+			$this->redirect_with_notice( 'invalid-request' );
 		}
 
-		if ( 'decline' === $decision ) {
-			update_post_meta( $request_id, 'lf_request_status', 'declined' );
-			$this->notify_player_request_decision( $request_id, 'declined', $team_id );
-			$this->redirect_with_notice( 'join-request-declined' );
+		// The same per-request lock, fresh re-read and state token as the staff
+		// inbox: a captain and staff (or a double click) cannot both decide.
+		$result = Join_Request_Service::shared()->apply_team_manager_decision(
+			$request_id,
+			$decision,
+			$team_id,
+			(int) $user->ID,
+			sanitize_key( wp_unslash( $_POST['lf_request_state'] ?? '' ) ),
+			function ( $managed_team_id ) use ( $user ) {
+				return $this->user_can_manage_team( $managed_team_id, $user->ID );
+			}
+		);
+
+		if ( is_wp_error( $result ) ) {
+			$notices = array(
+				'leagueflow_request_member'  => 'player-assigned',
+				'leagueflow_request_denied'  => 'team-denied',
+				'leagueflow_request_team'    => 'team-denied',
+				'leagueflow_request_missing' => 'invalid-request',
+				'leagueflow_request_failed'  => 'invalid-request',
+			);
+			$this->redirect_with_notice( $notices[ $result->get_error_code() ] ?? 'join-request-changed' );
 		}
 
-		$this->redirect_with_notice( 'invalid-request' );
+		$this->notify_player_request_decision( $request_id, 'approve' === $decision ? 'approved' : 'declined', $team_id );
+		$this->redirect_with_notice( 'approve' === $decision ? 'join-request-approved' : 'join-request-declined' );
 	}
 
 	/**
@@ -2247,6 +2297,9 @@ class Portal {
 			$this->redirect_with_notice( 'invalid-request' );
 		}
 
+		// Store the optional logo first so a rejected upload leaves the team unchanged.
+		$this->maybe_save_uploaded_image( 'lf_team_logo', $team_id );
+
 		wp_update_post(
 			array(
 				'ID'           => $team_id,
@@ -2256,7 +2309,6 @@ class Portal {
 		);
 
 		update_post_meta( $team_id, 'lf_short_name', sanitize_text_field( wp_unslash( $_POST['lf_short_name'] ?? '' ) ) );
-		$this->maybe_save_uploaded_image( 'lf_team_logo', $team_id );
 		$this->redirect_with_notice( 'team-saved' );
 	}
 
@@ -2277,16 +2329,19 @@ class Portal {
 			$this->redirect_with_notice( 'team-denied' );
 		}
 
-		$email = strtolower( sanitize_email( wp_unslash( $_POST['lf_email'] ?? '' ) ) );
+		$raw_email = trim( (string) wp_unslash( $_POST['lf_email'] ?? '' ) );
+		$email     = strtolower( sanitize_email( $raw_email ) );
 
-		if ( '' !== $email && ! is_email( $email ) ) {
+		// sanitize_email() returns '' for malformed input, so validate what was submitted.
+		if ( '' !== $raw_email && ! is_email( $email ) ) {
 			$this->redirect_with_notice( 'invalid-email' );
 		}
 
 		$linked_user = get_user_by( 'email', $email );
 		$name        = sanitize_text_field( wp_unslash( $_POST['lf_player_name'] ?? '' ) );
 
-		if ( '' === $name && $linked_user instanceof \WP_User ) {
+		// Only account managers may see another account's display name; captains must type a name.
+		if ( '' === $name && $linked_user instanceof \WP_User && can_manage_player_accounts() ) {
 			$name = $linked_user->display_name;
 		}
 
@@ -2347,9 +2402,11 @@ class Portal {
 			$this->redirect_with_notice( 'team-denied' );
 		}
 
-		$email = strtolower( sanitize_email( wp_unslash( $_POST['lf_email'] ?? '' ) ) );
+		$raw_email = trim( (string) wp_unslash( $_POST['lf_email'] ?? '' ) );
+		$email     = strtolower( sanitize_email( $raw_email ) );
 
-		if ( '' !== $email && ! is_email( $email ) ) {
+		// sanitize_email() returns '' for malformed input, so validate what was submitted.
+		if ( '' !== $raw_email && ! is_email( $email ) ) {
 			$this->redirect_with_notice( 'invalid-email' );
 		}
 
@@ -2418,6 +2475,8 @@ class Portal {
 			);
 		}
 
+		$teams_before = get_player_team_ids( $player_id );
+
 		assign_player_to_team(
 			$player_id,
 			$team_id,
@@ -2427,13 +2486,18 @@ class Portal {
 				'is_captain'    => ! empty( $_POST['lf_is_captain'] ) ? 1 : 0,
 			)
 		);
+		reconcile_roster_additions( $player_id, $teams_before, 'portal_roster' );
 
 		if ( '' !== $email && ( ! $owner_id || current_user_can( 'manage_options' ) ) ) {
 			update_post_meta( $player_id, 'lf_email', $email );
 
 			$linked_user = get_user_by( 'email', $email );
 
-			if ( $linked_user instanceof \WP_User ) {
+			// Only account managers may bind or promote another account, and never a privileged one.
+			// Otherwise the matching account claims this email-matched entry itself at portal sign-in.
+			if ( $linked_user instanceof \WP_User && (int) $linked_user->ID === $owner_id ) {
+				add_user_role_if_missing( $owner_id, 'leagueflow_player' );
+			} elseif ( $linked_user instanceof \WP_User && can_link_player_account( (int) $linked_user->ID ) ) {
 				update_post_meta( $player_id, 'lf_user_id', (int) $linked_user->ID );
 				add_user_role_if_missing( (int) $linked_user->ID, 'leagueflow_player' );
 			} else {
@@ -2970,6 +3034,10 @@ class Portal {
 			if ( $owner_id && $owner_id !== (int) $user->ID ) {
 				return 0;
 			}
+			// A privileged account only claims an entry created by someone who could link it anyway.
+			if ( ! $owner_id && ! is_participant_account( $user ) && ! $this->player_author_can_link_accounts( $player_id ) ) {
+				return 0;
+			}
 			update_post_meta( $player_id, 'lf_user_id', (int) $user->ID );
 			add_user_role_if_missing( $user->ID, 'leagueflow_player' );
 			return $player_id;
@@ -2996,6 +3064,18 @@ class Portal {
 		}
 
 		return 0;
+	}
+
+	/**
+	 * Check whether a player's author manages player accounts.
+	 *
+	 * @param int $player_id Player ID.
+	 * @return bool
+	 */
+	protected function player_author_can_link_accounts( $player_id ) {
+		$author = get_userdata( (int) get_post_field( 'post_author', $player_id ) );
+
+		return $author instanceof \WP_User && user_can( $author, 'leagueflow_manage_player_accounts' ) && user_can( $author, 'edit_users' ) && user_can( $author, 'promote_users' );
 	}
 
 	/**
@@ -3810,18 +3890,7 @@ class Portal {
 		?>
 		<div class="leagueflow-match-stack leagueflow-portal-matches">
 			<?php foreach ( $matches as $match ) : ?>
-				<article class="leagueflow-match-row">
-					<header class="leagueflow-match-row__header">
-						<strong><?php echo esc_html( $match['sport_label'] ); ?></strong>
-						<?php if ( ! empty( $match['datetime'] ) ) : ?><time datetime="<?php echo esc_attr( $match['datetime_raw'] ); ?>"><?php echo esc_html( $match['datetime'] ); ?></time><?php endif; ?>
-					</header>
-					<div class="leagueflow-match-row__teams">
-						<span><?php echo esc_html( $match['home_team'] ); ?></span>
-						<span class="leagueflow-match-row__score"><?php esc_html_e( 'vs', 'leagueflow' ); ?></span>
-						<span><?php echo esc_html( $match['away_team'] ); ?></span>
-					</div>
-					<?php if ( ! empty( $match['venue'] ) ) : ?><p class="leagueflow-match-row__venue"><?php echo esc_html( $match['venue'] ); ?></p><?php endif; ?>
-				</article>
+				<?php echo render_match_card( $match ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped by render_match_card(). ?>
 			<?php endforeach; ?>
 		</div>
 		<?php
@@ -3939,17 +4008,7 @@ class Portal {
 		<div class="leagueflow-match-stack leagueflow-portal-matches">
 			<?php foreach ( $matches as $match ) : ?>
 				<?php $current = isset( $statuses[ (int) $match['id'] ] ) ? $statuses[ (int) $match['id'] ] : ''; ?>
-				<article class="leagueflow-match-row">
-					<header class="leagueflow-match-row__header">
-						<strong><?php echo esc_html( $match['sport_label'] ); ?></strong>
-						<?php if ( ! empty( $match['datetime'] ) ) : ?><time datetime="<?php echo esc_attr( $match['datetime_raw'] ); ?>"><?php echo esc_html( $match['datetime'] ); ?></time><?php endif; ?>
-					</header>
-					<div class="leagueflow-match-row__teams">
-						<span><?php echo esc_html( $match['home_team'] ); ?></span>
-						<span class="leagueflow-match-row__score"><?php esc_html_e( 'vs', 'leagueflow' ); ?></span>
-						<span><?php echo esc_html( $match['away_team'] ); ?></span>
-					</div>
-					<?php if ( ! empty( $match['venue'] ) ) : ?><p class="leagueflow-match-row__venue"><?php echo esc_html( $match['venue'] ); ?></p><?php endif; ?>
+				<?php ob_start(); ?>
 					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="leagueflow-rsvp">
 						<?php echo $this->render_hidden_fields( 'set_availability' ); ?>
 						<input type="hidden" name="lf_match_id" value="<?php echo esc_attr( (string) $match['id'] ); ?>" />
@@ -3962,7 +4021,7 @@ class Portal {
 							<?php endforeach; ?>
 						</span>
 					</form>
-				</article>
+				<?php echo render_match_card( $match, array( 'after' => (string) ob_get_clean() ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped by render_match_card(); the form is built above. ?>
 			<?php endforeach; ?>
 		</div>
 		<?php
@@ -4125,6 +4184,11 @@ class Portal {
 
 		$messages = array(
 			'profile-saved'  => __( 'Profile saved.', 'leagueflow' ),
+			'consent-saved' => __( 'Your registration acknowledgements were saved.', 'leagueflow' ),
+			'consent-required' => __( 'Review and accept each required registration document.', 'leagueflow' ),
+			'consent-updated' => __( 'The registration documents changed or were not loaded. Review the current documents and submit again.', 'leagueflow' ),
+			'consent-unavailable' => __( 'A required registration document is not ready. Please contact recreation staff.', 'leagueflow' ),
+			'consent-save-error' => __( 'Your acknowledgement could not be saved. Please try again.', 'leagueflow' ),
 			'profile-setup-complete' => __( 'Profile setup complete.', 'leagueflow' ),
 			'player-onboarding-complete' => __( 'Your profile is ready and your team requests were submitted.', 'leagueflow' ),
 			'team-saved'     => __( 'Team saved.', 'leagueflow' ),
@@ -4141,6 +4205,7 @@ class Portal {
 			'placement-request-sent' => __( 'Your placement request was sent.', 'leagueflow' ),
 			'join-request-approved' => __( 'Join request approved.', 'leagueflow' ),
 			'join-request-declined' => __( 'Join request declined.', 'leagueflow' ),
+			'join-request-changed'  => __( 'That request changed or was reviewed by someone else since this page loaded. Nothing was changed; review the current list.', 'leagueflow' ),
 			'availability-saved' => __( 'Availability updated.', 'leagueflow' ),
 			'join-request-exists' => __( 'You already have a pending request for that team.', 'leagueflow' ),
 			'placement-request-exists' => __( 'You already have a pending placement request for that sport.', 'leagueflow' ),
@@ -4166,13 +4231,38 @@ class Portal {
 			return '';
 		}
 
-		$type = in_array( $notice, array( 'invalid-email', 'access-denied', 'player-identity-protected', 'captain-removal-denied', 'team-denied', 'team-exists', 'captain-sport-exists', 'player-sport-exists', 'player-missing', 'player-assigned', 'join-request-exists', 'placement-request-exists', 'join-request-member', 'placement-request-member', 'name-setup-required', 'sport-level-required', 'sport-request-required', 'team-level-mismatch', 'registration-email-denied', 'onboarding-save-error', 'registration-closed', 'upload-error', 'invalid-request' ), true ) ? 'error' : 'success';
+		$type = in_array( $notice, array( 'consent-required', 'consent-updated', 'consent-unavailable', 'consent-save-error', 'invalid-email', 'access-denied', 'player-identity-protected', 'captain-removal-denied', 'team-denied', 'team-exists', 'captain-sport-exists', 'player-sport-exists', 'player-missing', 'player-assigned', 'join-request-exists', 'placement-request-exists', 'join-request-member', 'placement-request-member', 'name-setup-required', 'sport-level-required', 'sport-request-required', 'team-level-mismatch', 'registration-email-denied', 'onboarding-save-error', 'registration-closed', 'upload-error', 'invalid-request' ), true ) ? 'error' : 'success';
 
 		return sprintf(
 			'<div class="leagueflow-portal__notice leagueflow-portal__notice--%1$s">%2$s</div>',
 			esc_attr( $type ),
 			esc_html( $messages[ $notice ] )
 		);
+	}
+
+	/** Validate current policy acknowledgements before self-service writes. */
+	protected function validate_registration_consent( $player_id, $user ) {
+		$result = Registration_Consent::validate_submission( $player_id, $user->ID, $_POST );
+		if ( is_wp_error( $result ) ) {
+			$this->redirect_with_notice( $result->get_error_code() );
+		}
+		return $result;
+	}
+
+	/** Save only the current participant's validated acknowledgement. */
+	protected function save_registration_consent( $player_id, $user, $documents ) {
+		$result = Registration_Consent::record( $player_id, $user->ID, $documents );
+		if ( is_wp_error( $result ) ) {
+			$this->redirect_with_notice( $result->get_error_code() );
+		}
+	}
+
+	/** Keep existing players informed when staff publish new document versions. */
+	protected function render_consent_renewal( $player_id, $user ) {
+		if ( ! Registration_Consent::pending( $player_id, $user->ID ) ) {
+			return '';
+		}
+		return '<section class="leagueflow-portal__panel"><h2>' . esc_html__( 'Review your registration documents', 'leagueflow' ) . '</h2><form class="leagueflow-portal__form" method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">' . $this->render_hidden_fields( 'accept_registration_documents' ) . Registration_Consent::render_fields( $player_id, $user->ID ) . '<button type="submit">' . esc_html__( 'Save acknowledgements', 'leagueflow' ) . '</button></form></section>';
 	}
 
 	/**
@@ -4220,7 +4310,7 @@ class Portal {
 	protected function redirect_with_notice( $notice, $args = array(), $fragment = '' ) {
 		$redirect = esc_url_raw( wp_unslash( $_POST['leagueflow_redirect_to'] ?? $this->get_portal_url() ) );
 		$action   = sanitize_key( wp_unslash( $_POST['leagueflow_portal_action'] ?? '' ) );
-		$error_notices = array( 'invalid-request', 'name-setup-required', 'sport-level-required', 'sport-request-required', 'team-level-mismatch', 'team-exists', 'captain-sport-exists', 'player-sport-exists', 'registration-email-denied', 'onboarding-save-error', 'registration-closed', 'upload-error' );
+		$error_notices = array( 'consent-required', 'consent-updated', 'consent-unavailable', 'consent-save-error', 'invalid-request', 'name-setup-required', 'sport-level-required', 'sport-request-required', 'team-level-mismatch', 'team-exists', 'captain-sport-exists', 'player-sport-exists', 'registration-email-denied', 'onboarding-save-error', 'registration-closed', 'upload-error' );
 
 		if ( in_array( $notice, $error_notices, true ) ) {
 			if ( 'complete_captain_onboarding' === $action ) {

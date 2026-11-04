@@ -1,0 +1,30 @@
+// Bounded page loading, recovery and newly encountered sport filters.
+const { JSDOM } = require('jsdom');
+const { readFileSync } = require('node:fs');
+const { strict: assert } = require('node:assert');
+const { join } = require('node:path');
+const source = readFileSync(join(__dirname, '../assets/js/calendar.js'), 'utf8');
+const event = (id, sport='volleyball') => ({id:'match-'+id, source:'match', kind:'match', kindLabel:'Match', title:'Team '+id+' vs Other', home:'Team '+id, away:'Other', sport, sportLabel:sport === 'soccer' ? 'Soccer' : 'Volleyball', day:'2026-10-15', start:'2026-10-15T18:30:00-07:00', end:'2026-10-15T19:30:00-07:00', time:'6:30 pm'});
+const data = { events:Array.from({length:100},(_,i)=>event(i+1)), sports:[{slug:'volleyball',color:'#b08c2e'}], pagination:{nextPage:2,perPage:100,total:101}, config:{today:'2026-10-15',calendarEndpoint:'https://example.test/wp-json/leagueflow/v1/calendar/events',calendarFilters:{season:13,include_events:true},monthNames:['January','February','March','April','May','June','July','August','September','October','November','December'],weekdays:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],weekdaysShort:['Su','Mo','Tu','We','Th','Fr','Sa']}};
+const html = `<div data-leagueflow-calendar><button data-calendar-view="month">Month</button><button data-calendar-view="list">List</button><input data-calendar-search><h3 data-calendar-range-label></h3><button data-calendar-today>Today</button><button data-calendar-prev>Previous</button><button data-calendar-next>Next</button><div data-calendar-stage></div><h3 data-calendar-panel-title></h3><button data-calendar-clear hidden>Show full month</button><div data-calendar-events></div><div data-calendar-sport-filters hidden><button data-sport="">All sports</button><button data-sport="volleyball">Volleyball</button></div><div data-calendar-type-filters hidden></div><div data-calendar-pagination><p data-calendar-progress role="status"></p><button data-calendar-load-page>Load next schedule page</button></div><script type="application/json" data-calendar-data>${JSON.stringify(data)}</script></div>`;
+const dom = new JSDOM(html,{url:'https://example.test/schedule/',runScripts:'outside-only',pretendToBeVisual:true});
+const w = dom.window, d=w.document;
+w.matchMedia=()=>({matches:false,addEventListener(){}});
+let requests=[], release, fail=true;
+w.fetch=(url, options)=>{requests.push({url,options});return new Promise(resolve=>{release=()=>resolve(fail ? {ok:false} : {ok:true,json:async()=>({events:[event(100),event(101,'soccer')],sports:[{slug:'soccer',color:'#2e7d4f'}],total:101,pagination:{currentPage:2,nextPage:null}})});});};
+const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
+(async()=>{
+ w.eval(source);await tick();
+ const load=d.querySelector('[data-calendar-load-page]');
+ assert.equal(requests.length,0,'never automatically loads historical pages');
+ assert.match(d.querySelector('[data-calendar-progress]').textContent,/100.*101/);
+ load.click();load.click();assert.equal(requests.length,1,'duplicate clicks cannot issue a second request');assert.equal(load.disabled,true);
+ const url=new URL(requests[0].url);assert.equal(url.searchParams.get('per_page'),'100');assert.equal(url.searchParams.get('page'),'2');assert.equal(url.searchParams.get('season'),'13');assert.equal(requests[0].options.credentials,'omit');
+ release();await tick();assert.equal(load.disabled,false);assert.match(d.querySelector('[data-calendar-progress]').textContent,/retry/);assert.equal(d.querySelectorAll('.leagueflow-calendar__event').length,100,'failure preserves initial events');
+ fail=false;load.click();release();await tick();
+ assert.equal(d.querySelector('[data-calendar-pagination]').hidden,true,'last page hides next-page control');
+ const sports=d.querySelector('[data-calendar-sport-filters]');assert.equal(sports.hidden,false,'a sport first encountered on page 2 becomes selectable');
+ assert.equal(d.querySelectorAll('.leagueflow-calendar__event').length,101,'deduplicates overlapping IDs');
+ sports.querySelector('[data-sport="soccer"]').click();assert.equal(d.querySelectorAll('.leagueflow-calendar__event').length,1);assert.match(d.querySelector('.leagueflow-calendar__event').textContent,/Team 101/);
+ w.close();console.log('PASS bounded calendar pagination, failed-page retry, deduplication and new sport filter');
+})().catch(error=>{console.error(error);w.close();process.exitCode=1;});

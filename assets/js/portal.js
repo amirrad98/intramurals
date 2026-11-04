@@ -188,6 +188,7 @@
 	function draftElements( form ) {
 		return Array.prototype.filter.call( form.elements, function ( field ) {
 			return field.name && 'file' !== field.type &&
+				! /^lf_consent(?:_version)?\[/.test( field.name ) &&
 				'action' !== field.name &&
 				'leagueflow_portal_nonce' !== field.name &&
 				'leagueflow_redirect_to' !== field.name &&
@@ -261,6 +262,10 @@
 	function hasOnboardingValidationNotice() {
 		var notice = new URLSearchParams( window.location.search ).get( 'leagueflow_notice' );
 		var validationNotices = [
+			'consent-required',
+			'consent-updated',
+			'consent-unavailable',
+			'consent-save-error',
 			'invalid-request',
 			'name-setup-required',
 			'sport-level-required',

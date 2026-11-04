@@ -25,6 +25,8 @@ defined( 'ABSPATH' ) || exit;
 		<div class="leagueflow-match-card__score">
 			<?php if ( ! empty( $match['scoreline'] ) ) : ?>
 				<strong><?php echo esc_html( $match['scoreline'] ); ?></strong>
+			<?php elseif ( ! empty( $match['result_label'] ) ) : ?>
+				<strong>&mdash;</strong>
 			<?php else : ?>
 				<strong><?php esc_html_e( 'vs', 'leagueflow' ); ?></strong>
 			<?php endif; ?>
@@ -34,6 +36,7 @@ defined( 'ABSPATH' ) || exit;
 			<h3><?php echo esc_html( $match['away_team'] ); ?></h3>
 		</div>
 	</div>
+	<?php if ( ! empty( $match['result_label'] ) ) : ?><p class="leagueflow-match-card__result"><?php echo esc_html( $match['result_label'] ); ?></p><?php endif; ?>
 
 	<?php if ( ! empty( $match['sport_fields'] ) ) : ?>
 		<div class="leagueflow-match-card__details">

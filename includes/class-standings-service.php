@@ -15,6 +15,13 @@ defined( 'ABSPATH' ) || exit;
 class Standings_Service {
 
 	/**
+	 * Rules used by the calculation in progress (sort callback reads them).
+	 *
+	 * @var array<string, mixed>
+	 */
+	protected $rules = array();
+
+	/**
 	 * Register hooks.
 	 *
 	 * @return void
@@ -33,8 +40,10 @@ class Standings_Service {
 	 * @return array<int, array<string, mixed>>
 	 */
 	public function get_rows( $competition_id = 0, $season_id = 0, $sport_id = 0, $league_level_id = 0 ) {
-		$matches  = $this->get_finished_matches( $competition_id, $season_id, $sport_id, $league_level_id );
-		$team_ids = $this->get_context_team_ids( $competition_id, $season_id, $sport_id, $league_level_id );
+		$sport_term  = $sport_id ? get_term( $sport_id, 'lf_sport' ) : null;
+		$this->rules = get_effective_rules( $sport_term instanceof \WP_Term ? $sport_term->slug : '', $competition_id )['values'];
+		$matches     = $this->get_finished_matches( $competition_id, $season_id, $sport_id, $league_level_id );
+		$team_ids    = $this->get_context_team_ids( $competition_id, $season_id, $sport_id, $league_level_id );
 
 		foreach ( $matches as $match ) {
 			$team_ids[] = (int) get_post_meta( $match->ID, 'lf_home_team_id', true );
@@ -73,21 +82,28 @@ class Standings_Service {
 			$home_id = (int) get_post_meta( $match->ID, 'lf_home_team_id', true );
 			$away_id = (int) get_post_meta( $match->ID, 'lf_away_team_id', true );
 
-			if ( ! $home_id || ! $away_id || empty( $rows[ $home_id ] ) || empty( $rows[ $away_id ] ) ) {
+			if ( ! $home_id || ! $away_id || $home_id === $away_id || empty( $rows[ $home_id ] ) || empty( $rows[ $away_id ] ) ) {
 				continue;
 			}
 
+			// Sport-wide tables can include more than one competition. Award
+			// points using each fixture's rules; use the selected table context
+			// only for the tie-breaker order applied after aggregation.
+			$match_sport = get_post_primary_term_id( $match->ID, 'lf_sport' );
+			$match_sport = $match_sport ? get_term( $match_sport, 'lf_sport' ) : null;
+			$match_cup   = $competition_id ? $competition_id : get_post_primary_term_id( $match->ID, 'lf_competition' );
+			$match_rules = get_effective_rules( $match_sport instanceof \WP_Term ? $match_sport->slug : '', $match_cup )['values'];
 			$outcome = sanitize_key( (string) get_post_meta( $match->ID, 'lf_outcome', true ) );
 
 			if ( in_array( $outcome, array( 'forfeit_home', 'forfeit_away', 'double_forfeit' ), true ) ) {
-				$this->apply_forfeit( $rows, $home_id, $away_id, $outcome );
+				$this->apply_forfeit( $rows, $home_id, $away_id, $outcome, $match_rules );
 				continue;
 			}
 
 			$home_score = get_post_meta( $match->ID, 'lf_home_score', true );
 			$away_score = get_post_meta( $match->ID, 'lf_away_score', true );
 
-			if ( ! has_score( $home_score ) || ! has_score( $away_score ) ) {
+			if ( ! Match_Status::is_valid_score( $home_score ) || ! Match_Status::is_valid_score( $away_score ) ) {
 				continue;
 			}
 
@@ -105,18 +121,18 @@ class Standings_Service {
 			if ( $home_score > $away_score ) {
 				$rows[ $home_id ]['wins']++;
 				$rows[ $away_id ]['losses']++;
-				$rows[ $home_id ]['points'] += (int) get_setting( 'points_win', 3 );
-				$rows[ $away_id ]['points'] += (int) get_setting( 'points_loss', 0 );
+				$rows[ $home_id ]['points'] += (int) $match_rules['points_win'];
+				$rows[ $away_id ]['points'] += (int) $match_rules['points_loss'];
 			} elseif ( $away_score > $home_score ) {
 				$rows[ $away_id ]['wins']++;
 				$rows[ $home_id ]['losses']++;
-				$rows[ $away_id ]['points'] += (int) get_setting( 'points_win', 3 );
-				$rows[ $home_id ]['points'] += (int) get_setting( 'points_loss', 0 );
+				$rows[ $away_id ]['points'] += (int) $match_rules['points_win'];
+				$rows[ $home_id ]['points'] += (int) $match_rules['points_loss'];
 			} else {
 				$rows[ $home_id ]['draws']++;
 				$rows[ $away_id ]['draws']++;
-				$rows[ $home_id ]['points'] += (int) get_setting( 'points_draw', 1 );
-				$rows[ $away_id ]['points'] += (int) get_setting( 'points_draw', 1 );
+				$rows[ $home_id ]['points'] += (int) $match_rules['points_draw'];
+				$rows[ $away_id ]['points'] += (int) $match_rules['points_draw'];
 			}
 		}
 
@@ -144,6 +160,79 @@ class Standings_Service {
 	}
 
 	/**
+	 * Explain why records in a staff member's selected context do not count.
+	 *
+	 * No dates are required: a result remains a result when its schedule is
+	 * incomplete. Return only counts and a few editable/visible example IDs;
+	 * callers can provide repair links without exposing private roster data.
+	 *
+	 * @param int $competition_id Competition term ID.
+	 * @param int $season_id Season term ID.
+	 * @param int $sport_id Sport term ID.
+	 * @param int $league_level_id League level term ID.
+	 * @return array<string, array<string, mixed>>
+	 */
+	public function get_diagnostics( $competition_id = 0, $season_id = 0, $sport_id = 0, $league_level_id = 0 ) {
+		$keys = array( 'counted', 'scored_not_finished', 'unfinished', 'incomplete', 'unpublished', 'knockout', 'invalid_teams' );
+		$result = array(
+			'counts'   => array_fill_keys( $keys, 0 ),
+			'examples' => array_fill_keys( $keys, array() ),
+		);
+
+		if ( ! current_user_can( 'edit_posts' ) ) {
+			return $result;
+		}
+
+		$args = $this->build_match_query_args( $competition_id, $season_id, $sport_id, $league_level_id );
+		$args['post_status'] = frontend_post_statuses();
+		unset( $args['meta_query'] );
+
+		foreach ( get_posts( $args ) as $match ) {
+			// Editable malformed references should be diagnosable, but a match
+			// the viewer cannot read must never contribute a count or example.
+			if ( ! can_view_league_post( $match ) && ! current_user_can( 'edit_post', $match->ID ) ) {
+				continue;
+			}
+			$reason = $this->get_exclusion_reason( $match );
+			$key    = $reason ? $reason : 'counted';
+			$result['counts'][ $key ]++;
+			if ( count( $result['examples'][ $key ] ) < 5 ) {
+				$result['examples'][ $key ][] = (int) $match->ID;
+			}
+		}
+
+		return $result;
+	}
+
+	/**
+	 * One eligibility rule shared by the table and staff diagnostics.
+	 *
+	 * @param \WP_Post $match Match post.
+	 * @return string Empty when the result counts; otherwise a diagnostic key.
+	 */
+	protected function get_exclusion_reason( $match ) {
+		if ( 'publish' !== $match->post_status ) {
+			return 'unpublished';
+		}
+		if ( get_post_meta( $match->ID, 'lf_is_knockout', true ) ) {
+			return 'knockout';
+		}
+		$home = (int) get_post_meta( $match->ID, 'lf_home_team_id', true );
+		$away = (int) get_post_meta( $match->ID, 'lf_away_team_id', true );
+		if ( ! $home || ! $away || $home === $away || 'lf_team' !== get_post_type( $home ) || 'lf_team' !== get_post_type( $away ) || 'publish' !== get_post_status( $home ) || 'publish' !== get_post_status( $away ) ) {
+			return 'invalid_teams';
+		}
+		$home_score = get_post_meta( $match->ID, 'lf_home_score', true );
+		$away_score = get_post_meta( $match->ID, 'lf_away_score', true );
+		$has_scores = Match_Status::is_valid_score( $home_score ) && Match_Status::is_valid_score( $away_score );
+		$forfeit    = in_array( get_post_meta( $match->ID, 'lf_outcome', true ), array( 'forfeit_home', 'forfeit_away', 'double_forfeit' ), true );
+		if ( 'finished' !== get_post_meta( $match->ID, 'lf_status', true ) ) {
+			return ( $has_scores || $forfeit ) ? 'scored_not_finished' : 'unfinished';
+		}
+		return ( $has_scores || $forfeit ) ? '' : 'incomplete';
+	}
+
+	/**
 	 * Apply a forfeit outcome to the standings rows.
 	 *
 	 * A forfeit is decided regardless of any recorded score. The winning team
@@ -154,10 +243,11 @@ class Standings_Service {
 	 * @param int                              $home_id Home team ID.
 	 * @param int                              $away_id Away team ID.
 	 * @param string                           $outcome Forfeit outcome.
+	 * @param array<string, mixed>             $rules Rules for this fixture.
 	 * @return void
 	 */
-	protected function apply_forfeit( &$rows, $home_id, $away_id, $outcome ) {
-		$walkover = max( 0, (int) get_setting( 'forfeit_score_winner', 3 ) );
+	protected function apply_forfeit( &$rows, $home_id, $away_id, $outcome, $rules ) {
+		$walkover = max( 0, (int) ( $rules['forfeit_score_winner'] ?? get_setting( 'forfeit_score_winner', 3 ) ) );
 
 		$rows[ $home_id ]['played']++;
 		$rows[ $away_id ]['played']++;
@@ -165,8 +255,8 @@ class Standings_Service {
 		if ( 'double_forfeit' === $outcome ) {
 			$rows[ $home_id ]['losses']++;
 			$rows[ $away_id ]['losses']++;
-			$rows[ $home_id ]['points'] += (int) get_setting( 'points_loss', 0 );
-			$rows[ $away_id ]['points'] += (int) get_setting( 'points_loss', 0 );
+			$rows[ $home_id ]['points'] += (int) $rules['points_loss'];
+			$rows[ $away_id ]['points'] += (int) $rules['points_loss'];
 			return;
 		}
 
@@ -182,8 +272,8 @@ class Standings_Service {
 		$rows[ $loser_id ]['losses']++;
 		$rows[ $winner_id ]['goals_for']     += $walkover;
 		$rows[ $loser_id ]['goals_against']  += $walkover;
-		$rows[ $winner_id ]['points']        += (int) get_setting( 'points_win', 3 );
-		$rows[ $loser_id ]['points']         += (int) get_setting( 'points_loss', 0 );
+		$rows[ $winner_id ]['points']        += (int) $rules['points_win'];
+		$rows[ $loser_id ]['points']         += (int) $rules['points_loss'];
 	}
 
 	/**
@@ -196,12 +286,20 @@ class Standings_Service {
 	 * @return array<int, \WP_Post>
 	 */
 	protected function get_finished_matches( $competition_id, $season_id, $sport_id, $league_level_id ) {
+		$args = $this->build_match_query_args( $competition_id, $season_id, $sport_id, $league_level_id );
+
+		return array_values( array_filter( get_posts( $args ), function( $match ) {
+			return can_view_league_post( $match ) && '' === $this->get_exclusion_reason( $match );
+		} ) );
+	}
+
+	/** Build the shared query without requiring schedule metadata to exist. */
+	protected function build_match_query_args( $competition_id, $season_id, $sport_id, $league_level_id ) {
 		$args = array(
 			'post_type'      => 'lf_match',
-			'post_status'    => frontend_post_statuses(),
+			'post_status'    => 'publish',
 			'posts_per_page' => -1,
-			'orderby'        => 'meta_value',
-			'meta_key'       => 'lf_match_datetime',
+			'orderby'        => 'ID',
 			'order'          => 'ASC',
 			'meta_query'     => array(
 				array(
@@ -249,7 +347,7 @@ class Standings_Service {
 			$args['tax_query'] = $tax_query;
 		}
 
-		return array_values( array_filter( get_posts( $args ), __NAMESPACE__ . '\\can_view_league_post' ) );
+		return $args;
 	}
 
 	/**
@@ -264,7 +362,7 @@ class Standings_Service {
 	protected function get_context_team_ids( $competition_id, $season_id, $sport_id, $league_level_id ) {
 		$args = array(
 			'post_type'      => 'lf_team',
-			'post_status'    => frontend_post_statuses(),
+			'post_status'    => 'publish',
 			'posts_per_page' => -1,
 			'fields'         => 'ids',
 			'orderby'        => 'title',
@@ -324,7 +422,7 @@ class Standings_Service {
 			return $right['points'] <=> $left['points'];
 		}
 
-		$rules = get_setting( 'tie_breakers', defaults()['tie_breakers'] );
+		$rules = ! empty( $this->rules['tie_breakers'] ) ? (array) $this->rules['tie_breakers'] : get_setting( 'tie_breakers', defaults()['tie_breakers'] );
 
 		foreach ( $rules as $rule ) {
 			switch ( $rule ) {
@@ -357,6 +455,6 @@ class Standings_Service {
 			}
 		}
 
-		return strcasecmp( (string) $left['name'], (string) $right['name'] );
+		return strcasecmp( (string) $left['name'], (string) $right['name'] ) ?: ( $left['team_id'] <=> $right['team_id'] );
 	}
 }

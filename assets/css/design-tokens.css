@@ -1,0 +1,60 @@
+/*
+ * LeagueFlow design tokens.
+ *
+ * One semantic token set shared by every LeagueFlow view (calendar, standings,
+ * team cards, match rows) and the Gutenberg preview. Component styles in
+ * frontend.css read only these tokens. The names follow the card/muted/primary
+ * vocabulary used by CampusManager so both plugins lay out the same way.
+ *
+ * Defaults are declared with :where() (zero specificity), so a theme can set
+ * any token on `.leagueflow`, or on a wrapper, without !important and
+ * regardless of stylesheet order. Only colours, type and shape are themable;
+ * layout stays in frontend.css.
+ */
+:where(.leagueflow) {
+	/* Surfaces and text. */
+	--lf-background: #f6f7f7;
+	--lf-card: #fff;
+	--lf-card-foreground: #1d2327;
+	--lf-muted: #f0f2f1;
+	--lf-muted-foreground: #50575e;
+	--lf-border: #d8dcdf;
+	--lf-border-strong: #b8bec3;
+
+	/* Actions and emphasis. */
+	--lf-primary: #0a4b78;
+	--lf-primary-foreground: #fff;
+	--lf-accent: #c5a04a;
+	--lf-accent-foreground: #1d2327;
+	--lf-ring: #0a4b78;
+	--lf-success: #0f6b32;
+	--lf-success-foreground: #fff;
+	--lf-danger: #8a3b3b;
+	--lf-danger-foreground: #fff;
+
+	/* Shape and depth. */
+	--lf-radius: 0.5rem;
+	--lf-radius-sm: 0.375rem;
+	--lf-radius-pill: 999px;
+	--lf-shadow-sm: 0 1px 2px rgba(15, 35, 28, 0.06);
+	--lf-shadow: 2px 3px 5px rgba(15, 35, 28, 0.1);
+	--lf-shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.24);
+	--lf-card-pad: 1rem;
+	--lf-gap: 1rem;
+
+	/* Type. Labels are small caps-style metadata (dates, sport, status). */
+	--lf-font-body: inherit;
+	--lf-font-display: inherit;
+	--lf-font-label: inherit;
+	--lf-display-transform: none;
+	--lf-label-transform: uppercase;
+	--lf-label-tracking: 0.04em;
+
+	/* Legacy names kept for themes and custom CSS written against LeagueFlow 1.x. */
+	--leagueflow-border: var(--lf-border);
+	--leagueflow-surface: var(--lf-card);
+	--leagueflow-text: var(--lf-card-foreground);
+	--leagueflow-muted: var(--lf-muted-foreground);
+	--leagueflow-accent: var(--lf-primary);
+	--leagueflow-success: var(--lf-success);
+}

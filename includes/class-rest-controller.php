@@ -350,7 +350,29 @@ class Rest_Controller {
 	 * @return \WP_REST_Response
 	 */
 	public function get_calendar_events( WP_REST_Request $request ) {
+		foreach ( array( 'competition' => 'lf_competition', 'season' => 'lf_season', 'sport' => 'lf_sport', 'league_level' => 'lf_league_level' ) as $key => $taxonomy ) {
+			$value = $request->get_param( $key );
+			if ( null === $value || '' === $value || 0 === $value || '0' === $value ) { continue; }
+			$id = is_scalar( $value ) ? resolve_term_id( $value, $taxonomy ) : 0;
+			if ( ! $id || ! term_exists( $id, $taxonomy ) ) {
+				return new WP_Error( 'leagueflow_calendar_filter', sprintf( __( 'Unknown calendar filter: %s.', 'leagueflow' ), $key ), array( 'status' => 400 ) );
+			}
+		}
+		$team = $request->get_param( 'team' );
+		if ( null !== $team && '' !== $team && '0' !== (string) ( is_scalar( $team ) ? $team : '' ) ) {
+			$id = is_scalar( $team ) ? resolve_post_id( $team, 'lf_team' ) : 0;
+			if ( ! $id || 'lf_team' !== get_post_type( $id ) ) { return new WP_Error( 'leagueflow_calendar_team', __( 'Unknown calendar team.', 'leagueflow' ), array( 'status' => 400 ) ); }
+		}
+		foreach ( array( 'date', 'start_date', 'end_date' ) as $date_key ) {
+			$value = $request->get_param( $date_key );
+			if ( null !== $value && '' !== $value && ! public_collection_date( $value ) ) {
+				return new WP_Error( 'leagueflow_calendar_date', __( 'Calendar dates must be real dates in YYYY-MM-DD format.', 'leagueflow' ), array( 'status' => 400 ) );
+			}
+		}
 		$range    = $this->get_date_range_from_request( $request );
+		if ( $range['start_date'] && $range['end_date'] && $range['start_date'] > $range['end_date'] ) {
+			return new WP_Error( 'leagueflow_calendar_range', __( 'The end date must be on or after the start date.', 'leagueflow' ), array( 'status' => 400 ) );
+		}
 		$per_page = public_collection_limit( $request->get_param( 'per_page' ) );
 		$page     = public_collection_page( $request->get_param( 'page' ) );
 		$type     = $request->get_param( 'type' );
@@ -384,6 +406,8 @@ class Rest_Controller {
 				'end_date'         => $range['end_date'],
 				'limit'            => $per_page,
 				'page'             => $page,
+				'order'            => 'desc' === $request->get_param( 'order' ) ? 'desc' : 'asc',
+				'public_only'      => rest_sanitize_boolean( $request->get_param( 'public_only' ) ),
 			)
 		);
 
@@ -403,7 +427,7 @@ class Rest_Controller {
 
 		$filters = $this->build_calendar_filter_metadata( $items, $colors );
 
-		return rest_ensure_response(
+		$response = rest_ensure_response(
 			array(
 				'events'        => $events,
 				'eventMetadata' => $metadata,
@@ -430,6 +454,10 @@ class Rest_Controller {
 				),
 			)
 		);
+		$response->header( 'Cache-Control', 'no-store' );
+		$response->header( 'X-WP-Total', $total );
+		$response->header( 'X-WP-TotalPages', $pages );
+		return $response;
 	}
 
 	/**
@@ -946,7 +974,7 @@ class Rest_Controller {
 	protected function sanitize_date_param( $date ) {
 		$date = is_scalar( $date ) ? (string) $date : '';
 
-		return preg_match( '/^\d{4}-\d{2}-\d{2}$/', $date ) ? $date : '';
+		return public_collection_date( $date );
 	}
 
 	/**
@@ -1003,13 +1031,6 @@ class Rest_Controller {
 		}
 	}
 
-	/**
-	 * Assign sport, competition, and season terms to a new calendar event.
-	 *
-	 * @param int                  $post_id Post ID.
-	 * @param array<string, mixed> $data Event data.
-	 * @return void
-	 */
 	/** Validate every requested assignment before creating any event or term. */
 	protected function prepare_calendar_event_terms( $data ) {
 		$map = array( 'lf_sport' => array( 'sport', 'category' ), 'lf_league_level' => array( 'league_level', 'leagueLevel', 'level' ), 'lf_competition' => array( 'competition' ), 'lf_season' => array( 'season' ) );
@@ -1018,26 +1039,46 @@ class Rest_Controller {
 			$values = array();
 			foreach ( $keys as $key ) {
 				if ( isset( $data[$key] ) ) {
-					if ( ! is_array( $data[$key] ) && ! is_scalar( $data[$key] ) ) { return new WP_Error( 'leagueflow_event_term_invalid', 'Invalid taxonomy value.', array( 'status' => 400 ) ); }
+					if ( ! is_array( $data[$key] ) && ! is_string( $data[$key] ) && ! is_int( $data[$key] ) ) { return new WP_Error( 'leagueflow_event_term_invalid', 'Invalid taxonomy value.', array( 'status' => 400 ) ); }
 					$values = is_array( $data[$key] ) ? $data[$key] : explode( ',', (string) $data[$key] );
 					break;
 				}
 			}
 			$tax = get_taxonomy( $taxonomy );
 			foreach ( $values as $value ) {
-				if ( ! is_scalar( $value ) ) { return new WP_Error( 'leagueflow_event_term_invalid', 'Invalid taxonomy value.', array( 'status' => 400 ) ); }
+				if ( ! is_string( $value ) && ! is_int( $value ) ) { return new WP_Error( 'leagueflow_event_term_invalid', 'Invalid taxonomy value.', array( 'status' => 400 ) ); }
 				$name = trim( sanitize_text_field( (string) $value ) );
 				if ( '' === $name ) { continue; }
 				if ( ! $tax || ! current_user_can( $tax->cap->assign_terms ) ) { return new WP_Error( 'leagueflow_event_terms_forbidden', 'You cannot assign these terms.', array( 'status' => 403 ) ); }
-				$term = is_numeric( $value ) ? get_term( absint( $value ), $taxonomy ) : ( get_term_by( 'slug', sanitize_title( $name ), $taxonomy ) ?: get_term_by( 'name', $name, $taxonomy ) );
+				$is_id = ctype_digit( $name ) && Match_Status::is_valid_score( $name ) && (int) $name > 0;
+				if ( is_numeric( $name ) && ! $is_id ) { return new WP_Error( 'leagueflow_event_term_invalid', 'Invalid taxonomy term ID.', array( 'status' => 400 ) ); }
+				$term = $is_id ? get_term( (int) $name, $taxonomy ) : ( get_term_by( 'slug', sanitize_title( $name ), $taxonomy ) ?: get_term_by( 'name', $name, $taxonomy ) );
 				if ( $term && ! is_wp_error( $term ) ) {
 					$plan[$taxonomy][] = (int) $term->term_id;
-				} elseif ( is_numeric( $value ) ) {
+				} elseif ( $is_id ) {
 					return new WP_Error( 'leagueflow_event_term_invalid', 'Unknown taxonomy term ID.', array( 'status' => 400 ) );
 				} elseif ( ! current_user_can( $tax->cap->manage_terms ) ) {
 					return new WP_Error( 'leagueflow_event_terms_forbidden', 'You cannot create taxonomy terms.', array( 'status' => 403 ) );
 				} else {
 					$plan[$taxonomy][] = $name;
+				}
+			}
+			if ( isset( $plan[$taxonomy] ) ) { $plan[$taxonomy] = array_values( array_unique( $plan[$taxonomy] ) ); }
+		}
+		if ( count( $plan['lf_sport'] ?? array() ) > 1 ) {
+			return new WP_Error( 'leagueflow_event_sport_invalid', __( 'Choose one sport for a calendar event.', 'leagueflow' ), array( 'status' => 400 ) );
+		}
+		$sport = $plan['lf_sport'][0] ?? '';
+		$sport_term = is_int( $sport ) ? get_term( $sport, 'lf_sport' ) : null;
+		if ( is_int( $sport ) && ! $sport_term instanceof \WP_Term ) {
+			return new WP_Error( 'leagueflow_event_sport_invalid', __( 'The selected sport no longer exists.', 'leagueflow' ), array( 'status' => 400 ) );
+		}
+		$sport_slug = $sport_term instanceof \WP_Term ? $sport_term->slug : sanitize_title( $sport );
+		$sport_slug = sanitize_key( $sport_slug );
+		foreach ( array( 'lf_competition', 'lf_season' ) as $taxonomy ) {
+			foreach ( $plan[$taxonomy] ?? array() as $value ) {
+				if ( ! $sport_slug || ( is_int( $value ) && get_term_sport_slug( $value ) !== $sport_slug ) ) {
+					return new WP_Error( 'leagueflow_event_context_invalid', __( 'Choose a sport and competitions or seasons assigned to that same sport. Existing terms without a sport must be configured before use.', 'leagueflow' ), array( 'status' => 400 ) );
 				}
 			}
 		}
@@ -1046,31 +1087,62 @@ class Rest_Controller {
 
 	/** Apply an already-authorized term plan; recheck at each mutation. */
 	protected function assign_calendar_event_terms( $post_id, $plan ) {
+		// Revalidate every existing term before creating any new term. This also
+		// resolves names which another request created after the initial check.
+		$data = array();
+		foreach ( array( 'lf_sport' => 'sport', 'lf_league_level' => 'league_level', 'lf_competition' => 'competition', 'lf_season' => 'season' ) as $taxonomy => $key ) {
+			if ( isset( $plan[$taxonomy] ) ) { $data[$key] = $plan[$taxonomy]; }
+		}
+		$plan = $this->prepare_calendar_event_terms( $data );
+		if ( is_wp_error( $plan ) ) { return $plan; }
 		$created_terms = array();
 		$fail = static function( $error ) use ( &$created_terms ) {
-			foreach ( $created_terms as $term ) { wp_delete_term( $term[0], $term[1] ); }
+			foreach ( array_reverse( $created_terms ) as $term ) { wp_delete_term( $term[0], $term[1] ); }
 			return $error;
 		};
 		$forbidden = new WP_Error( 'leagueflow_event_terms_forbidden', __( 'You cannot assign or create these terms.', 'leagueflow' ), array( 'status' => 403 ) );
+		$invalid = new WP_Error( 'leagueflow_event_context_invalid', __( 'A selected term is missing or belongs to a different sport. Refresh the event form and try again.', 'leagueflow' ), array( 'status' => 400 ) );
+		$save_error = new WP_Error( 'leagueflow_event_terms_not_saved', __( 'The event terms could not be saved. Please try again.', 'leagueflow' ), array( 'status' => 500 ) );
+		$sport_slug = '';
 		foreach ( $plan as $taxonomy => $values ) {
 			$tax = get_taxonomy( $taxonomy );
 			if ( ! $tax || ! current_user_can( $tax->cap->assign_terms ) ) { return $fail( $forbidden ); }
 			$ids = array();
 			foreach ( $values as $value ) {
-				if ( is_int( $value ) ) { $ids[] = $value; continue; }
-				if ( ! current_user_can( $tax->cap->manage_terms ) ) { return $fail( $forbidden ); }
-				$created = wp_insert_term( $value, $taxonomy, array( 'slug' => sanitize_title( $value ) ) );
-				if ( is_wp_error( $created ) ) {
-					if ( 'term_exists' !== $created->get_error_code() ) { return $fail( $created ); }
-					$ids[] = (int) $created->get_error_data();
-				} else {
-					$ids[] = (int) $created['term_id'];
-					$created_terms[] = array( (int) $created['term_id'], $taxonomy );
+				$id = is_int( $value ) ? $value : 0;
+				$is_new = false;
+				if ( ! $id ) {
+					if ( ! current_user_can( $tax->cap->manage_terms ) ) { return $fail( $forbidden ); }
+					$created = wp_insert_term( $value, $taxonomy, array( 'slug' => sanitize_title( $value ) ) );
+					if ( is_wp_error( $created ) ) {
+						if ( 'term_exists' !== $created->get_error_code() ) { return $fail( $created ); }
+						$id = (int) $created->get_error_data();
+					} else {
+						$id = (int) $created['term_id'];
+						$is_new = true;
+						$created_terms[] = array( $id, $taxonomy );
+					}
 				}
+				$term = get_term( $id, $taxonomy );
+				if ( ! $term instanceof \WP_Term ) { return $fail( $invalid ); }
+				if ( 'lf_sport' === $taxonomy ) { $sport_slug = sanitize_key( $term->slug ); }
+				if ( in_array( $taxonomy, array( 'lf_competition', 'lf_season' ), true ) ) {
+					if ( ! $sport_slug ) { return $fail( $invalid ); }
+					if ( $is_new ) {
+						update_term_meta( $id, 'lf_sport_slug', $sport_slug );
+						if ( get_term_sport_slug( $id ) !== $sport_slug ) { return $fail( $save_error ); }
+					} elseif ( get_term_sport_slug( $id ) !== $sport_slug ) {
+						return $fail( $invalid );
+					}
+				}
+				$ids[] = $id;
 			}
 			if ( ! current_user_can( $tax->cap->assign_terms ) ) { return $fail( $forbidden ); }
 			$result = wp_set_object_terms( $post_id, $ids, $taxonomy, false );
 			if ( is_wp_error( $result ) ) { return $fail( $result ); }
+			foreach ( $ids as $id ) {
+				if ( ! object_term_saved( $post_id, $id, $taxonomy ) ) { return $fail( $save_error ); }
+			}
 		}
 		return true;
 	}

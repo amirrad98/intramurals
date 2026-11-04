@@ -6,12 +6,18 @@ on:
     tags: ['v*']
   pull_request:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Optional stable tag to publish from main after all checks (for example v1.1.0)'
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: leagueflow-${{ github.workflow }}-${{ github.ref }}
+  group: leagueflow-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}-${{ inputs.release_tag || 'checks' }}
   cancel-in-progress: false
 
 jobs:
@@ -35,6 +41,23 @@ jobs:
           php -l leagueflow.php
           php -l uninstall.php
           php tests/github-updater.php
+          php tests/admin-filters.php
+          php tests/admin-assets.php
+          php tests/asset-versions.php
+          php tests/match-datetime.php
+
+  calendar:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Calendar, admin interaction and registration regressions
+        run: npm test
 
   package:
     runs-on: ubuntu-24.04
@@ -50,9 +73,16 @@ jobs:
         env:
           BUILD_REF_TYPE: ${{ github.ref_type }}
           BUILD_REF_NAME: ${{ github.ref_name }}
+          BUILD_RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
+          if [ -n "$BUILD_RELEASE_TAG" ]; then
+            test "$BUILD_REF_TYPE" = branch
+            test "$BUILD_REF_NAME" = main
+          fi
           if [ "$BUILD_REF_TYPE" = tag ]; then
             python3 scripts/build.py --tag "$BUILD_REF_NAME"
+          elif [ -n "$BUILD_RELEASE_TAG" ]; then
+            python3 scripts/build.py --tag "$BUILD_RELEASE_TAG"
           else
             python3 scripts/build.py
           fi
@@ -84,12 +114,13 @@ jobs:
       - uses: shivammathur/setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45 # v2
         with:
           php-version: '8.2'
-          extensions: mysqli, zip
+          extensions: mysqli, zip, curl, gd
           coverage: none
           tools: wp-cli
-      - name: Install disposable WordPress and exercise security and updates
+      - name: Install disposable WordPress and exercise security, portal writes, portal HTTP, admin workflow and updates
         env:
           WP_TEST_VERSION: ${{ matrix.wordpress }}
+          LEAGUEFLOW_DISPOSABLE_WP: '1'
         run: |
           python3 scripts/build.py
           wp_root="$RUNNER_TEMP/leagueflow-wordpress"
@@ -100,11 +131,31 @@ jobs:
           export LEAGUEFLOW_TEST_PACKAGE="$GITHUB_WORKSPACE/dist/leagueflow-$(python3 -c 'from scripts.build import metadata,ROOT; print(metadata(ROOT)["version"])').zip"
           wp plugin install "$LEAGUEFLOW_TEST_PACKAGE" --activate --path="$wp_root"
           wp eval-file "$GITHUB_WORKSPACE/tests/wordpress-security.php" --path="$wp_root"
+          wp eval-file "$GITHUB_WORKSPACE/tests/wordpress-portal.php" --path="$wp_root"
+          wp eval-file "$GITHUB_WORKSPACE/tests/wordpress-portal-http.php" --path="$wp_root"
+          wp eval-file "$GITHUB_WORKSPACE/tests/wordpress-admin.php" --path="$wp_root"
+          wp eval-file "$GITHUB_WORKSPACE/tests/wordpress-admin-workflow.php" --path="$wp_root"
+          wp eval-file "$GITHUB_WORKSPACE/tests/wordpress-sports-setup.php" --path="$wp_root"
+          wp eval-file "$GITHUB_WORKSPACE/tests/wordpress-results.php" --path="$wp_root"
+          wp eval-file "$GITHUB_WORKSPACE/tests/wordpress-results-workflow.php" --path="$wp_root"
+          wp eval-file "$GITHUB_WORKSPACE/tests/wordpress-bracket-sync.php" --path="$wp_root"
+          wp eval-file "$GITHUB_WORKSPACE/tests/wordpress-result-rest.php" --path="$wp_root"
+          wp eval-file "$GITHUB_WORKSPACE/tests/wordpress-result-display.php" --path="$wp_root"
+          wp eval-file "$GITHUB_WORKSPACE/tests/wordpress-standings.php" --path="$wp_root"
+          wp eval-file "$GITHUB_WORKSPACE/tests/wordpress-scheduling.php" --path="$wp_root"
+          wp eval-file "$GITHUB_WORKSPACE/tests/wordpress-calendar.php" --path="$wp_root"
+          wp eval-file "$GITHUB_WORKSPACE/tests/wordpress-registration.php" --path="$wp_root"
+          wp eval-file "$GITHUB_WORKSPACE/tests/wordpress-rest-identity.php" --path="$wp_root"
+          wp eval-file "$GITHUB_WORKSPACE/tests/wordpress-referee.php" --path="$wp_root"
+          wp eval-file "$GITHUB_WORKSPACE/tests/wordpress-public-api.php" --path="$wp_root"
           wp eval-file "$GITHUB_WORKSPACE/tests/wordpress-update.php" --path="$wp_root"
 
   publish:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [php, package, wordpress]
+    if: >-
+      github.repository == 'amirrad98/intramurals' &&
+      ((github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.release_tag != ''))
+    needs: [php, calendar, package, wordpress]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -114,10 +165,17 @@ jobs:
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
       - name: Build verified tag and publish immutable release assets
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+          RELEASE_COMMIT: ${{ github.sha }}
+          RELEASE_EVENT: ${{ github.event_name }}
         run: |
           python3 scripts/build.py --tag "$RELEASE_TAG"
+          if [ "$RELEASE_EVENT" = workflow_dispatch ]; then
+            python3 scripts/create-release-tag.py --tag "$RELEASE_TAG" --commit "$RELEASE_COMMIT"
+          fi
           python3 scripts/publish-release.py --tag "$RELEASE_TAG"

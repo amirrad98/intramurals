@@ -42,6 +42,10 @@ def package_files(root):
             raise ValueError("Missing or unsafe runtime directory: " + directory)
         for path in sorted(base.rglob("*")):
             relative = path.relative_to(root)
+            # Finder metadata is never runtime code. Preserve rejection of links,
+            # hidden directories and every other unexpected/credential file.
+            if path.name == '.DS_Store' and path.is_file() and not path.is_symlink() and not any(part.startswith('.') for part in relative.parts[:-1]):
+                continue
             if path.is_symlink() or any(part.startswith(".") for part in relative.parts) or "\\" in str(relative):
                 raise ValueError("Unsafe runtime entry: " + str(relative))
             if path.is_file():

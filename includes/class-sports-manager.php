@@ -51,6 +51,8 @@ class Sports_Manager {
 		add_action( 'init', array( $this, 'register_term_meta' ) );
 		add_action( 'init', array( $this, 'ensure_enabled_terms' ), 30 );
 		add_action( 'admin_init', array( $this, 'maybe_migrate_legacy_data' ), 5 );
+		add_action( 'admin_notices', array( $this, 'render_term_sport_notices' ) );
+		add_filter( 'rest_request_before_callbacks', array( $this, 'validate_rest_term_sport' ), 10, 3 );
 
 		$taxonomies = array( 'lf_competition', 'lf_season' );
 
@@ -62,6 +64,8 @@ class Sports_Manager {
 			add_filter( 'manage_edit-' . $taxonomy . '_columns', array( $this, 'add_term_sport_column' ) );
 			add_filter( 'manage_' . $taxonomy . '_custom_column', array( $this, 'render_term_sport_column' ), 10, 3 );
 		}
+
+		add_filter( 'pre_insert_term', array( $this, 'require_term_sport_on_add' ), 10, 3 );
 	}
 
 	/**
@@ -229,19 +233,19 @@ class Sports_Manager {
 				'slug'             => 'volleyball',
 				'label'            => __( 'Volleyball', 'leagueflow' ),
 				'menu_label'       => __( 'Volleyball', 'leagueflow' ),
-				'description'      => __( 'Best-of-five sets with rally scoring, libero usage, and set-by-set results.', 'leagueflow' ),
+				'description'      => __( 'Set-based results. The number of sets and scoring format follow your league rules.', 'leagueflow' ),
 				'table_labels'     => array(
 					'for'        => __( 'Sets For', 'leagueflow' ),
 					'against'    => __( 'Sets Against', 'leagueflow' ),
 					'difference' => __( 'Set Diff', 'leagueflow' ),
 				),
-				'score_label'      => __( 'Set Points', 'leagueflow' ),
-				'match_structure'  => __( 'Best of 5 sets', 'leagueflow' ),
+				'score_label'      => __( 'Sets won', 'leagueflow' ),
+				'match_structure'  => __( 'Set-based scoring', 'leagueflow' ),
 				'match_fields'     => array(
 					array(
 						'key'         => 'lf_set_scores',
 						'label'       => __( 'Set Scores', 'leagueflow' ),
-						'description' => __( 'List each set score and any deciding set details.', 'leagueflow' ),
+						'description' => __( 'Optional set-by-set notes (for example 25-18, 21-25, 15-11). Enter sets won in Home Score and Away Score to calculate standings.', 'leagueflow' ),
 					),
 					array(
 						'key'         => 'lf_match_stats_summary',
@@ -397,36 +401,33 @@ class Sports_Manager {
 	 * Update enabled sports.
 	 *
 	 * @param array<int, string> $slugs Enabled sport slugs.
-	 * @return void
+	 * @return true|\WP_Error True on success; invalid selections leave setup unchanged.
 	 */
 	public function update_enabled_sports( $slugs ) {
 		$definitions = array_keys( static::get_definitions() );
-		$slugs       = array_values(
-			array_filter(
-				array_unique(
-					array_map( 'sanitize_key', (array) $slugs )
-				),
-				static function( $slug ) use ( $definitions ) {
-					return in_array( $slug, $definitions, true );
-				}
-			)
-		);
-
-		if ( empty( $slugs ) ) {
-			$slugs = array( 'soccer' );
+		if ( ! is_array( $slugs ) || ! $slugs ) {
+			return new \WP_Error( 'leagueflow_sports_required', __( 'Choose at least one sport. Your saved sports have not changed.', 'leagueflow' ) );
 		}
+		foreach ( $slugs as $slug ) {
+			if ( ! is_string( $slug ) || ! in_array( $slug, $definitions, true ) ) {
+				return new \WP_Error( 'leagueflow_sports_invalid', __( 'Choose sports from the available list. Your saved sports have not changed.', 'leagueflow' ) );
+			}
+		}
+		$slugs = array_values( array_unique( $slugs ) );
 
 		update_option( self::ENABLED_SPORTS_OPTION, $slugs, false );
 		update_option( self::SETUP_REQUIRED_OPTION, 0, false );
 		$this->ensure_enabled_terms();
+		return true;
 	}
 
 	/**
-	 * Ensure enabled sport terms exist.
+	 * Create enabled sport terms that do not exist yet. Existing terms (and any
+	 * name or description an editor gave them) are left exactly as they are.
 	 *
 	 * @return void
 	 */
-	public function ensure_enabled_terms() {
+	public function ensure_missing_enabled_terms() {
 		if ( ! taxonomy_exists( 'lf_sport' ) ) {
 			return;
 		}
@@ -434,28 +435,28 @@ class Sports_Manager {
 		foreach ( $this->get_enabled_sports() as $slug => $sport ) {
 			$term = get_term_by( 'slug', $slug, 'lf_sport' );
 
-			if ( ! $term || is_wp_error( $term ) ) {
-				wp_insert_term(
-					$sport['label'],
-					'lf_sport',
-					array(
-						'slug'        => $slug,
-						'description' => $sport['description'],
-					)
-				);
+			if ( $term instanceof \WP_Term ) {
 				continue;
 			}
 
-			wp_update_term(
-				$term->term_id,
+			wp_insert_term(
+				$sport['label'],
 				'lf_sport',
 				array(
-					'name'        => $sport['label'],
 					'slug'        => $slug,
 					'description' => $sport['description'],
 				)
 			);
 		}
+	}
+
+	/**
+	 * Ensure sport terms exist without rewriting staff-edited names/descriptions.
+	 *
+	 * @return void
+	 */
+	public function ensure_enabled_terms() {
+		$this->ensure_missing_enabled_terms();
 	}
 
 	/**
@@ -547,16 +548,21 @@ class Sports_Manager {
 	 */
 	public function render_term_sport_field() {
 		$current = sanitize_key( (string) wp_unslash( $_GET['lf_sport'] ?? $_GET['sport'] ?? '' ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$enabled = $this->get_enabled_sport_slugs();
+
+		if ( ! $current && 1 === count( $enabled ) ) {
+			$current = $enabled[0];
+		}
 		?>
-		<div class="form-field term-group">
+		<div class="form-field term-group form-required">
 			<label for="lf_sport_slug"><?php esc_html_e( 'Sport', 'leagueflow' ); ?></label>
-			<select name="lf_sport_slug" id="lf_sport_slug">
+			<select name="lf_sport_slug" id="lf_sport_slug" required aria-required="true">
 				<option value=""><?php esc_html_e( 'Select a sport', 'leagueflow' ); ?></option>
 				<?php foreach ( $this->get_enabled_sports() as $sport ) : ?>
 					<option value="<?php echo esc_attr( $sport['slug'] ); ?>" <?php selected( $current, $sport['slug'] ); ?>><?php echo esc_html( $sport['label'] ); ?></option>
 				<?php endforeach; ?>
 			</select>
-			<p><?php esc_html_e( 'Assign this competition or season to a sport so sport-specific pages and filters stay consistent.', 'leagueflow' ); ?></p>
+			<p><?php esc_html_e( 'Required. Competitions and seasons belong to one sport, so sport pages and filters stay consistent.', 'leagueflow' ); ?></p>
 		</div>
 		<?php
 	}
@@ -573,11 +579,14 @@ class Sports_Manager {
 		<tr class="form-field term-group-wrap">
 			<th scope="row"><label for="lf_sport_slug"><?php esc_html_e( 'Sport', 'leagueflow' ); ?></label></th>
 			<td>
-				<select name="lf_sport_slug" id="lf_sport_slug">
+				<select name="lf_sport_slug" id="lf_sport_slug" required aria-required="true">
 					<option value=""><?php esc_html_e( 'Select a sport', 'leagueflow' ); ?></option>
 					<?php foreach ( $this->get_enabled_sports() as $sport ) : ?>
 						<option value="<?php echo esc_attr( $sport['slug'] ); ?>" <?php selected( $current, $sport['slug'] ); ?>><?php echo esc_html( $sport['label'] ); ?></option>
 					<?php endforeach; ?>
+					<?php if ( $current && ! in_array( $current, $this->get_enabled_sport_slugs(), true ) && isset( static::get_definitions()[ $current ] ) ) : ?>
+						<option value="<?php echo esc_attr( $current ); ?>" selected><?php echo esc_html( sprintf( /* translators: %s: sport */ __( '%s (disabled)', 'leagueflow' ), static::get_definitions()[ $current ]['label'] ) ); ?></option>
+					<?php endif; ?>
 				</select>
 				<p class="description"><?php esc_html_e( 'Use the same sport across competitions, teams, and matches for consistent filtering.', 'leagueflow' ); ?></p>
 			</td>
@@ -592,23 +601,115 @@ class Sports_Manager {
 	 * @return void
 	 */
 	public function save_term_sport_field( $term_id ) {
-		if ( ! current_user_can( 'manage_categories' ) ) {
+		// Only the add/edit term forms carry the field. Quick Edit and programmatic
+		// updates must leave the stored sport alone (they used to reset it).
+		if ( ! current_user_can( 'manage_categories' ) || ! isset( $_POST['lf_sport_slug'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
 			return;
 		}
 
-		$slug = sanitize_key( wp_unslash( $_POST['lf_sport_slug'] ?? '' ) );
+		$raw = wp_unslash( $_POST['lf_sport_slug'] ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		$slug = is_string( $raw ) ? sanitize_key( $raw ) : '';
 
-		if ( ! $slug ) {
-			$enabled = $this->get_enabled_sport_slugs();
-			$slug    = ! empty( $enabled ) ? $enabled[0] : 'soccer';
+		// A blank choice never falls back to the first enabled sport.
+		if ( '' === $slug || ! isset( static::get_definitions()[ $slug ] ) ) {
+			return;
 		}
-
-		if ( isset( static::get_definitions()[ $slug ] ) ) {
-			update_term_meta( $term_id, 'lf_sport_slug', $slug );
+		$error = $this->validate_term_sport( $term_id, $slug );
+		if ( is_wp_error( $error ) ) {
+			set_transient( 'leagueflow_term_sport_error_' . get_current_user_id(), $error->get_error_message(), 120 );
 			return;
 		}
 
-		delete_term_meta( $term_id, 'lf_sport_slug' );
+		update_term_meta( $term_id, 'lf_sport_slug', $slug );
+		flush_current_season_cache();
+	}
+
+	/**
+	 * A competition/season cannot move away from the sport of its records.
+	 * Disabled sports may be retained on existing terms, never newly assigned.
+	 *
+	 * @param int    $term_id Existing term, or 0 for a new term.
+	 * @param string $slug Proposed sport slug.
+	 * @return true|\WP_Error Validation result.
+	 */
+	public function validate_term_sport( $term_id, $slug ) {
+		if ( ! is_string( $slug ) || ! isset( static::get_definitions()[ $slug ] ) ) {
+			return new \WP_Error( 'leagueflow_sport_required', __( 'Choose the sport this competition or season belongs to.', 'leagueflow' ), array( 'status' => 400 ) );
+		}
+		$current = $term_id ? get_term_sport_slug( $term_id ) : '';
+		if ( $current === $slug ) {
+			return true;
+		}
+		if ( ! in_array( $slug, $this->get_enabled_sport_slugs(), true ) ) {
+			return new \WP_Error( 'leagueflow_sport_disabled', __( 'Enable this sport in Sports Setup before assigning a competition or season to it.', 'leagueflow' ), array( 'status' => 400 ) );
+		}
+		$term = $term_id ? get_term( $term_id ) : null;
+		if ( $term instanceof \WP_Term && in_array( $term->taxonomy, array( 'lf_competition', 'lf_season' ), true ) ) {
+			$ids = get_objects_in_term( $term_id, $term->taxonomy );
+			if ( is_wp_error( $ids ) ) { return $ids; }
+			foreach ( $ids as $post_id ) {
+				$slugs = wp_get_object_terms( $post_id, 'lf_sport', array( 'fields' => 'slugs' ) );
+				if ( is_wp_error( $slugs ) || ( $slugs && ! in_array( $slug, $slugs, true ) ) ) {
+					return new \WP_Error( 'leagueflow_term_sport_in_use', __( 'This competition or season is assigned to records in another sport. Its sport was kept. Create a separate competition or season for the new sport, or correct those record assignments first.', 'leagueflow' ), array( 'status' => 400 ) );
+				}
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * Validate native term REST writes before WordPress updates the term.
+	 * WordPress 6.5's term controller does not honour WP_Error from its
+	 * rest_pre_insert filter, so rejection must happen before the callback.
+	 */
+	public function validate_rest_term_sport( $response, $handler, $request ) {
+		unset( $handler );
+		if ( null !== $response || ! in_array( $request->get_method(), array( 'POST', 'PUT', 'PATCH' ), true )
+			|| ! preg_match( '#^/wp/v2/(lf_competition|lf_season)(?:/([0-9]+))?/?$#', $request->get_route(), $matches ) ) {
+			return $response;
+		}
+		$meta = $request->get_param( 'meta' );
+		if ( ! is_array( $meta ) || ! array_key_exists( 'lf_sport_slug', $meta ) ) {
+			return $response;
+		}
+		$result = $this->validate_term_sport( isset( $matches[2] ) ? (int) $matches[2] : 0, $meta['lf_sport_slug'] );
+		return is_wp_error( $result ) ? $result : $response;
+	}
+
+	/** Show a refused taxonomy sport change on the returning term screen. */
+	public function render_term_sport_notices() {
+		$key = 'leagueflow_term_sport_error_' . get_current_user_id();
+		$message = get_transient( $key );
+		if ( is_string( $message ) && '' !== $message ) {
+			delete_transient( $key );
+			echo '<div class="notice notice-error is-dismissible"><p>' . esc_html( $message ) . '</p></div>';
+		}
+	}
+
+	/**
+	 * Refuse to create a competition or season from the admin form without a sport.
+	 *
+	 * @param string|\WP_Error $term Term name or error.
+	 * @param string           $taxonomy Taxonomy.
+	 * @param array<mixed>     $args Insert args.
+	 * @return string|\WP_Error
+	 */
+	public function require_term_sport_on_add( $term, $taxonomy, $args = array() ) {
+		unset( $args );
+
+		if ( is_wp_error( $term ) || ! in_array( $taxonomy, array( 'lf_competition', 'lf_season' ), true ) ) {
+			return $term;
+		}
+
+		// Only the add-term form; programmatic inserts keep their own contract.
+		if ( 'add-tag' !== sanitize_key( wp_unslash( $_POST['action'] ?? '' ) ) || ! isset( $_POST['lf_sport_slug'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
+			return $term;
+		}
+
+		$raw = wp_unslash( $_POST['lf_sport_slug'] ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		$slug = is_string( $raw ) ? sanitize_key( $raw ) : '';
+		$result = $this->validate_term_sport( 0, $slug );
+		return is_wp_error( $result ) ? $result : $term;
 	}
 
 	/**

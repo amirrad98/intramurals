@@ -1,15 +1,14 @@
+/*
+ * Component layout. Colours, type and shape come from design-tokens.css
+ * (--lf-*); the card / muted / pill patterns match CampusManager's calendar.
+ */
 .leagueflow {
-	--leagueflow-border: #ccd0d4;
-	--leagueflow-surface: #fff;
-	--leagueflow-text: #1d2327;
-	--leagueflow-muted: #50575e;
-	--leagueflow-accent: #0a4b78;
-	--leagueflow-success: #0f6b32;
-	color: var(--leagueflow-text);
+	color: var(--lf-card-foreground);
+	font-family: var(--lf-font-body);
 }
 
 .leagueflow a {
-	color: var(--leagueflow-accent);
+	color: var(--lf-primary);
 	text-decoration: none;
 }
 
@@ -18,12 +17,40 @@
 	text-decoration: underline;
 }
 
+.leagueflow :is(a, button, summary, [tabindex="0"]):focus-visible {
+	outline: 3px solid var(--lf-ring);
+	outline-offset: 2px;
+}
+
+/* Small uppercase metadata: dates, sport, status, column headings. */
+.leagueflow-label,
+.leagueflow-match-row__header,
+.leagueflow-table thead th,
+.leagueflow-roster-table thead th,
+.leagueflow-sport-standings__meta,
+.leagueflow-bracket__match time {
+	font-family: var(--lf-font-label);
+	letter-spacing: var(--lf-label-tracking);
+	text-transform: var(--lf-label-transform);
+}
+
+/* Tables: a card that scrolls inside its wrapper rather than reflowing. */
+.leagueflow-table-wrap {
+	max-width: 100%;
+	overflow-x: auto;
+	-webkit-overflow-scrolling: touch;
+}
+
 .leagueflow-table,
 .leagueflow-roster-table {
 	width: 100%;
-	border-collapse: collapse;
-	background: var(--leagueflow-surface);
-	border: 1px solid var(--leagueflow-border);
+	border-collapse: separate;
+	border-spacing: 0;
+	background: var(--lf-card);
+	border: 1px solid var(--lf-border);
+	border-radius: var(--lf-radius);
+	box-shadow: var(--lf-shadow-sm);
+	overflow: hidden;
 	font-size: 0.95rem;
 }
 
@@ -31,27 +58,125 @@
 .leagueflow-table td,
 .leagueflow-roster-table th,
 .leagueflow-roster-table td {
-	padding: 0.75rem;
-	border-bottom: 1px solid var(--leagueflow-border);
+	padding: 0.7rem 0.75rem;
+	border-bottom: 1px solid var(--lf-border);
 	text-align: left;
 	vertical-align: middle;
 }
 
-.leagueflow-table thead th,
-.leagueflow-roster-table thead th {
-	background: #f6f7f7;
-	font-weight: 600;
+.leagueflow-table td {
+	font-variant-numeric: tabular-nums;
 }
 
-.leagueflow-table__team,
+.leagueflow-table tbody tr:last-child td,
+.leagueflow-roster-table tbody tr:last-child td {
+	border-bottom: 0;
+}
+
+.leagueflow-table thead th,
+.leagueflow-roster-table thead th {
+	background: var(--lf-muted);
+	color: var(--lf-muted-foreground);
+	font-size: 0.75rem;
+	font-weight: 700;
+	white-space: nowrap;
+}
+
+.leagueflow-table tbody tr:hover td {
+	background: color-mix(in srgb, var(--lf-muted) 55%, transparent);
+}
+
+.leagueflow-table td:last-child strong {
+	font-family: var(--lf-font-display);
+	font-size: 1.05rem;
+}
+
+/* Table cells stay table cells, so every row's line is continuous; the team
+   logo and name are laid out inside the cell instead. */
+.leagueflow-table__team-inner,
 .leagueflow-match-row__teams,
 .leagueflow-match-card__team {
 	display: flex;
 	align-items: center;
 	gap: 0.75rem;
+	min-width: 0;
 }
 
-.leagueflow-table__logo-wrap img,
+.leagueflow-table__team {
+	width: 100%;
+	min-width: 8rem;
+}
+
+.leagueflow-table__team-inner > :last-child {
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+.leagueflow-table__logo-wrap {
+	flex: none;
+	display: inline-flex;
+}
+
+.leagueflow-table .is-number {
+	text-align: center;
+	white-space: nowrap;
+}
+
+.leagueflow-table__col--pos {
+	width: 2.5rem;
+	color: var(--lf-muted-foreground);
+}
+
+.leagueflow-table__col--points {
+	text-align: right !important;
+}
+
+.leagueflow-table abbr[title] {
+	border: 0;
+	text-decoration: none;
+	cursor: help;
+}
+
+/* Small screens keep position, team, record and points; for/against go
+   first, then the difference. Columns are chosen by name, not position. */
+@media (max-width: 760px) {
+	.leagueflow-table .is-detail {
+		display: none;
+	}
+
+	.leagueflow-table th,
+	.leagueflow-table td {
+		padding: 0.6rem 0.45rem;
+	}
+
+	.leagueflow-table__team {
+		min-width: 0;
+	}
+}
+
+@media (max-width: 420px) {
+	.leagueflow-table .is-diff {
+		display: none;
+	}
+
+	.leagueflow-table__logo-wrap img {
+		width: 26px;
+		height: 26px;
+	}
+}
+
+.leagueflow-table__team a {
+	color: var(--lf-card-foreground);
+	font-weight: 600;
+}
+
+.leagueflow-table__logo-wrap img {
+	width: 32px;
+	height: 32px;
+	object-fit: cover;
+	border-radius: 50%;
+}
+
 .leagueflow-team-card__media img,
 .leagueflow-team-header__media img,
 .leagueflow-match-card__logo img,
@@ -62,66 +187,175 @@
 	border-radius: 50%;
 }
 
-.leagueflow-team-grid {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-	gap: 1rem;
+/* Cards share one shell: card surface, hairline border, small radius and shadow. */
+.leagueflow-team-card,
+.leagueflow-match-row,
+.leagueflow-bracket__match,
+.leagueflow-match-card,
+.leagueflow-sport-standings__panel {
+	box-sizing: border-box;
+	background: var(--lf-card);
+	border: 1px solid var(--lf-border);
+	border-radius: var(--lf-radius);
+	box-shadow: var(--lf-shadow-sm);
+	color: var(--lf-card-foreground);
 }
 
 .leagueflow-team-card,
 .leagueflow-match-row,
 .leagueflow-bracket__match,
 .leagueflow-match-card {
-	background: var(--leagueflow-surface);
-	border: 1px solid var(--leagueflow-border);
-	padding: 1rem;
+	padding: var(--lf-card-pad);
+}
+
+.leagueflow-team-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+	gap: var(--lf-gap);
 }
 
 .leagueflow-team-card {
 	display: flex;
 	gap: 1rem;
+	transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.leagueflow-team-card:hover,
+.leagueflow-team-card:focus-within {
+	border-color: var(--lf-border-strong);
+	box-shadow: var(--lf-shadow);
+}
+
+.leagueflow-team-card__media {
+	flex: 0 0 auto;
+}
+
+.leagueflow-team-card__content {
+	min-width: 0;
+}
+
+.leagueflow-team-card h3 {
+	margin: 0;
+	font-family: var(--lf-font-display);
+	font-size: 1.1rem;
+	line-height: 1.2;
+	text-transform: var(--lf-display-transform);
+	overflow-wrap: anywhere;
+}
+
+.leagueflow-team-card h3 a {
+	color: inherit;
 }
 
 .leagueflow-meta-list {
 	list-style: none;
 	padding: 0;
 	margin: 0.5rem 0 0;
+	color: var(--lf-muted-foreground);
+	font-size: 0.88rem;
 }
 
 .leagueflow-meta-list li {
-	margin-bottom: 0.25rem;
+	margin-bottom: 0.2rem;
 }
 
+.leagueflow-meta-list strong {
+	color: var(--lf-card-foreground);
+	font-weight: 600;
+}
+
+/* Match rows: card with a rounded accent pill on the left (CampusManager event card). */
 .leagueflow-match-stack {
 	display: grid;
-	gap: 1rem;
+	gap: 0.75rem;
+}
+
+.leagueflow-match-row {
+	position: relative;
+	padding-left: calc(var(--lf-card-pad) + 0.75rem);
+}
+
+.leagueflow-match-row::before {
+	content: "";
+	position: absolute;
+	top: 0.75rem;
+	bottom: 0.75rem;
+	left: 0.65rem;
+	width: 4px;
+	border-radius: var(--lf-radius-pill);
+	background: var(--lf-cal-accent, var(--lf-accent));
 }
 
 .leagueflow-match-row__header {
 	display: flex;
+	flex-wrap: wrap;
 	justify-content: space-between;
 	align-items: center;
-	gap: 1rem;
-	margin-bottom: 0.75rem;
-	color: var(--leagueflow-muted);
-	font-size: 0.95rem;
+	gap: 0.4rem 1rem;
+	margin-bottom: 0.6rem;
+	color: var(--lf-muted-foreground);
+	font-size: 0.75rem;
+}
+
+.leagueflow-match-row__header > div {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.35rem;
+}
+
+.leagueflow-match-row__header strong {
+	color: var(--lf-card-foreground);
+}
+
+.leagueflow-match-row__header time {
+	white-space: nowrap;
 }
 
 .leagueflow-match-row__teams {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+	gap: 0.5rem 1rem;
 	font-size: 1rem;
-	font-weight: 600;
-	justify-content: space-between;
+	font-weight: 700;
+	line-height: 1.25;
+}
+
+.leagueflow-match-row__teams > span:last-child {
+	text-align: right;
 }
 
 .leagueflow-match-row__score,
 .leagueflow-match-card__score {
-	min-width: 80px;
+	min-width: 3.5rem;
 	text-align: center;
 }
 
+.leagueflow-match-row__score {
+	padding: 0.15rem 0.6rem;
+	border-radius: var(--lf-radius-pill);
+	background: var(--lf-muted);
+	color: var(--lf-muted-foreground);
+	font-family: var(--lf-font-display);
+	font-size: 0.9rem;
+	font-variant-numeric: tabular-nums;
+}
+
+strong.leagueflow-match-row__score {
+	background: var(--lf-primary);
+	color: var(--lf-primary-foreground);
+}
+
 .leagueflow-match-row__venue {
-	margin: 0.75rem 0 0.5rem;
-	color: var(--leagueflow-muted);
+	margin: 0.6rem 0 0;
+	color: var(--lf-muted-foreground);
+	font-size: 0.88rem;
+}
+
+.leagueflow-match-row__body > p:last-child:not(.leagueflow-match-row__venue) {
+	margin: 0.6rem 0 0;
+	font-size: 0.88rem;
+	font-weight: 600;
 }
 
 .leagueflow-match-card__header {
@@ -131,7 +365,7 @@
 
 .leagueflow-match-card__header p {
 	margin: 0.25rem 0;
-	color: var(--leagueflow-muted);
+	color: var(--lf-muted-foreground);
 }
 
 .leagueflow-match-card__teams {
@@ -148,44 +382,62 @@
 }
 
 .leagueflow-match-card__score strong {
+	font-family: var(--lf-font-display);
 	font-size: 2rem;
 	display: block;
 }
 
+.leagueflow-match-card__result {
+	text-align: center;
+	font-weight: 600;
+}
+
+.leagueflow-match-row__result,
+.leagueflow-bracket__result {
+	margin: 0.6rem 0 0;
+	font-weight: 600;
+}
+
 .leagueflow-match-card__details {
 	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
 	gap: 1rem;
 }
 
 .leagueflow-badge {
-	display: inline-block;
-	padding: 0.15rem 0.5rem;
-	border: 1px solid var(--leagueflow-border);
-	background: #f6f7f7;
-	font-size: 0.8rem;
-	margin-left: 0.35rem;
+	display: inline-flex;
+	align-items: center;
+	padding: 0.12rem 0.55rem;
+	border: 1px solid var(--lf-border);
+	border-radius: var(--lf-radius-pill);
+	background: var(--lf-muted);
+	color: var(--lf-card-foreground);
+	font-size: 0.72rem;
+	font-weight: 600;
+	line-height: 1.4;
 }
 
+/* Standings: one card per sport, a muted summary bar and a count pill. */
 .leagueflow-sport-standings {
 	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-	gap: 1rem;
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+	gap: var(--lf-gap);
+	align-items: start;
 }
 
 .leagueflow-sport-standings__panel {
-	background: var(--leagueflow-surface);
-	border: 1px solid var(--leagueflow-border);
+	overflow: hidden;
 }
 
 .leagueflow-sport-standings__summary {
 	cursor: pointer;
 	display: flex;
 	align-items: center;
-	justify-content: space-between;
-	gap: 1rem;
-	padding: 1rem;
+	gap: 0.75rem;
+	min-height: 2.75rem;
+	padding: 0.75rem var(--lf-card-pad);
 	font-weight: 700;
+	list-style: none;
 }
 
 .leagueflow-sport-standings__summary::-webkit-details-marker {
@@ -194,7 +446,21 @@
 
 .leagueflow-sport-standings__summary::after {
 	content: '+';
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: none;
+	width: 1.75rem;
+	height: 1.75rem;
+	margin-left: auto;
+	border: 1px solid var(--lf-border);
+	border-radius: 50%;
 	font-weight: 700;
+	line-height: 1;
+}
+
+.leagueflow-sport-standings__panel[open] .leagueflow-sport-standings__summary {
+	border-bottom: 1px solid var(--lf-border);
 }
 
 .leagueflow-sport-standings__panel[open] .leagueflow-sport-standings__summary::after {
@@ -202,22 +468,30 @@
 }
 
 .leagueflow-sport-standings__label {
+	font-family: var(--lf-font-display);
 	font-size: 1.05rem;
+	text-transform: var(--lf-display-transform);
 }
 
 .leagueflow-sport-standings__meta {
-	color: var(--leagueflow-muted);
-	font-size: 0.85rem;
-	font-weight: 400;
+	padding: 0.1rem 0.55rem;
+	border-radius: var(--lf-radius-pill);
+	background: var(--lf-muted);
+	color: var(--lf-muted-foreground);
+	font-size: 0.72rem;
+	font-weight: 600;
+	white-space: nowrap;
 }
 
 .leagueflow-sport-standings__body {
-	border-top: 1px solid var(--leagueflow-border);
-	padding: 1rem;
+	padding: 0;
 }
 
-.leagueflow-sport-standings__body .leagueflow-table-wrap {
-	overflow-x: auto;
+/* Inside a standings card the table drops its own card shell. */
+.leagueflow-sport-standings__body .leagueflow-table {
+	border: 0;
+	border-radius: 0;
+	box-shadow: none;
 }
 
 .leagueflow-bracket {
@@ -230,7 +504,11 @@
 .leagueflow-bracket__round h3 {
 	margin-top: 0;
 	padding-bottom: 0.5rem;
-	border-bottom: 2px solid var(--leagueflow-border);
+	border-bottom: 1px solid var(--lf-border);
+	font-family: var(--lf-font-label);
+	font-size: 0.85rem;
+	letter-spacing: var(--lf-label-tracking);
+	text-transform: var(--lf-label-transform);
 }
 
 .leagueflow-bracket__match {
@@ -239,8 +517,8 @@
 
 .leagueflow-bracket__match time {
 	display: block;
-	font-size: 0.9rem;
-	color: var(--leagueflow-muted);
+	font-size: 0.75rem;
+	color: var(--lf-muted-foreground);
 	margin-bottom: 0.75rem;
 }
 
@@ -249,14 +527,17 @@
 	justify-content: space-between;
 	gap: 1rem;
 	padding: 0.5rem 0;
-	border-bottom: 1px solid #eef0f1;
+	border-bottom: 1px solid var(--lf-border);
+}
+
+.leagueflow-bracket__team:last-child {
+	border-bottom: 0;
 }
 
 .leagueflow-bracket__team.is-winner {
 	font-weight: 700;
-	color: var(--leagueflow-success);
+	color: var(--lf-success);
 }
-
 .leagueflow-team-header {
 	display: flex;
 	gap: 1.5rem;
@@ -1148,13 +1429,12 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 }
 
 @media (max-width: 782px) {
-	.leagueflow-table,
+	/* Standings tables stay tables; their wrapper scrolls. */
 	.leagueflow-roster-table {
 		display: block;
 		overflow-x: auto;
 	}
 
-	.leagueflow-team-card,
 	.leagueflow-team-header,
 	.leagueflow-match-card__teams {
 		display: block;
@@ -1255,6 +1535,22 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 	}
 }
 
+@media (max-width: 600px) {
+	/* Narrow match rows stack home / score / away instead of squeezing three columns. */
+	.leagueflow-match-row__teams {
+		grid-template-columns: minmax(0, 1fr);
+		gap: 0.3rem;
+	}
+
+	.leagueflow-match-row__teams > span:last-child {
+		text-align: left;
+	}
+
+	.leagueflow-match-row__score {
+		justify-self: start;
+	}
+}
+
 @media (max-width: 520px) {
 	.leagueflow-portal__summary,
 	.leagueflow-portal-roster {
@@ -1268,14 +1564,21 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 	}
 }
 
-/* Schedule calendar */
+/* Schedule calendar
+ *
+ * CampusManager layout in LeagueFlow tokens: a toolbar with a muted pill-tab
+ * track, scrolling filter chips, one card for the month board and a card for
+ * the day/month panel. Event cards carry a rounded accent pill on the left in
+ * the sport colour. On phones the month becomes a compact number grid with
+ * dots and the selected day's events sit in the same card as its footer.
+ */
 
 .leagueflow-calendar {
-	--lf-cal-panel: #fff;
-	--lf-cal-muted-bg: #f6f7f7;
-	--lf-cal-shadow: 0 14px 30px rgba(15, 35, 28, 0.08);
+	--lf-cal-panel: var(--lf-card);
+	--lf-cal-muted-bg: var(--lf-muted);
+	--lf-cal-shadow: var(--lf-shadow);
 	display: grid;
-	gap: 1rem;
+	gap: var(--lf-gap);
 }
 
 .leagueflow-calendar__toolbar,
@@ -1283,7 +1586,7 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 .leagueflow-calendar__chips {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 0.6rem;
+	gap: 0.5rem;
 	align-items: center;
 }
 
@@ -1293,16 +1596,17 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 
 .leagueflow-calendar__filters {
 	align-items: flex-start;
+	flex-direction: column;
 }
 
+/* Pill tabs: a muted track, the active view lifted onto a card. */
 .leagueflow-calendar__view-tabs {
 	display: inline-flex;
 	align-items: center;
-	gap: 0.25rem;
+	gap: 0.15rem;
 	padding: 0.25rem;
-	border: 1px solid var(--leagueflow-border);
-	border-radius: 8px;
-	background: var(--leagueflow-surface);
+	border-radius: var(--lf-radius);
+	background: var(--lf-muted);
 }
 
 .leagueflow-calendar__view,
@@ -1316,18 +1620,29 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 }
 
 .leagueflow-calendar__view {
-	padding: 0.45rem 0.75rem;
+	min-height: 2.25rem;
+	padding: 0.4rem 0.85rem;
 	border: 0;
-	border-radius: 6px;
+	border-radius: var(--lf-radius-sm);
 	background: transparent;
-	color: var(--leagueflow-muted);
-	font-size: 0.9rem;
+	color: var(--lf-muted-foreground);
+	font-family: var(--lf-font-label);
+	font-size: 0.85rem;
+	font-weight: 600;
+	letter-spacing: var(--lf-label-tracking);
+	text-transform: var(--lf-label-transform);
 	line-height: 1;
+	transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.leagueflow-calendar__view:hover {
+	color: var(--lf-card-foreground);
 }
 
 .leagueflow-calendar__view.is-active {
-	background: var(--leagueflow-accent);
-	color: #fff;
+	background: var(--lf-card);
+	color: var(--lf-card-foreground);
+	box-shadow: var(--lf-shadow-sm);
 }
 
 .leagueflow-calendar__search {
@@ -1336,13 +1651,14 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 }
 
 .leagueflow-calendar__search input {
+	box-sizing: border-box;
 	width: 100%;
-	min-height: 2.35rem;
+	min-height: 2.5rem;
 	padding: 0.45rem 0.75rem;
-	border: 1px solid var(--leagueflow-border);
-	border-radius: 8px;
-	background: var(--leagueflow-surface);
-	color: var(--leagueflow-text);
+	border: 1px solid var(--lf-border);
+	border-radius: var(--lf-radius);
+	background: var(--lf-card);
+	color: var(--lf-card-foreground);
 	font: inherit;
 }
 
@@ -1355,39 +1671,44 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 	align-items: center;
 	gap: 0.45rem;
 	min-height: 2.25rem;
-	padding: 0.4rem 0.8rem;
-	border: 1px solid var(--leagueflow-border);
-	border-radius: 999px;
-	background: var(--leagueflow-surface);
-	color: var(--leagueflow-text);
-	font-size: 0.88rem;
+	padding: 0.35rem 0.8rem;
+	border: 1px solid var(--lf-border);
+	border-radius: var(--lf-radius-pill);
+	background: var(--lf-card);
+	color: var(--lf-card-foreground);
+	font-family: var(--lf-font-label);
+	font-size: 0.82rem;
+	font-weight: 600;
+	letter-spacing: var(--lf-label-tracking);
+	text-transform: var(--lf-label-transform);
 	transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
 
 .leagueflow-calendar__chip:hover {
-	border-color: var(--lf-cal-accent, var(--leagueflow-accent));
+	border-color: var(--lf-cal-accent, var(--lf-primary));
 }
 
 .leagueflow-calendar__chip.is-active {
-	background: var(--lf-cal-accent, var(--leagueflow-accent));
-	border-color: var(--lf-cal-accent, var(--leagueflow-accent));
-	color: #fff;
+	background: var(--lf-cal-accent, var(--lf-primary));
+	border-color: var(--lf-cal-accent, var(--lf-primary));
+	color: var(--lf-primary-foreground);
 }
 
 .leagueflow-calendar__chips--types .leagueflow-calendar__chip.is-active {
-	--lf-cal-accent: var(--leagueflow-text);
+	--lf-cal-accent: var(--lf-card-foreground);
+	color: var(--lf-card);
 }
 
 .leagueflow-calendar__chip-dot {
-	width: 0.58rem;
-	height: 0.58rem;
+	width: 0.55rem;
+	height: 0.55rem;
 	border-radius: 50%;
 	background: var(--lf-cal-accent, currentColor);
 	flex: none;
 }
 
 .leagueflow-calendar__chip.is-active .leagueflow-calendar__chip-dot {
-	background: #fff;
+	background: currentColor;
 }
 
 .leagueflow-calendar__chip-count {
@@ -1398,21 +1719,23 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 .leagueflow-calendar__layout {
 	display: grid;
 	grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.75fr);
-	gap: 1rem;
+	gap: var(--lf-gap);
 	align-items: start;
 }
 
 .leagueflow-calendar__board,
 .leagueflow-calendar__panel {
+	box-sizing: border-box;
 	background: var(--lf-cal-panel);
-	border: 1px solid var(--leagueflow-border);
-	border-radius: 8px;
-	box-shadow: var(--lf-cal-shadow);
+	border: 1px solid var(--lf-border);
+	border-radius: var(--lf-radius);
+	box-shadow: var(--lf-shadow-sm);
+	color: var(--lf-card-foreground);
 }
 
 .leagueflow-calendar__board {
 	min-width: 0;
-	padding: 1rem;
+	padding: 1.25rem;
 	overflow: hidden;
 }
 
@@ -1425,8 +1748,7 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 }
 
 .leagueflow-calendar__header,
-.leagueflow-calendar__panel-head,
-.leagueflow-calendar__list-date {
+.leagueflow-calendar__panel-head {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
@@ -1437,19 +1759,29 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 	margin-bottom: 1rem;
 }
 
+.leagueflow-calendar__panel-head {
+	flex-wrap: wrap;
+	margin-bottom: 0.75rem;
+}
+
 .leagueflow-calendar__month,
 .leagueflow-calendar__panel-title {
 	margin: 0;
-	color: var(--leagueflow-text);
+	color: var(--lf-card-foreground);
+	font-family: var(--lf-font-display);
+	text-transform: var(--lf-display-transform);
 }
 
 .leagueflow-calendar__month {
-	font-size: 1.25rem;
-	line-height: 1.2;
+	font-size: clamp(1.35rem, 2.4vw, 1.9rem);
+	font-weight: 700;
+	letter-spacing: -0.01em;
+	line-height: 1.1;
 }
 
 .leagueflow-calendar__panel-title {
-	font-size: 1rem;
+	font-size: 1.05rem;
+	line-height: 1.25;
 }
 
 .leagueflow-calendar__nav {
@@ -1458,27 +1790,28 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 }
 
 .leagueflow-calendar__nav-btn {
-	min-width: 2.35rem;
-	min-height: 2.25rem;
-	padding: 0.35rem 0.65rem;
-	border: 1px solid var(--leagueflow-border);
-	border-radius: 8px;
-	background: var(--leagueflow-surface);
-	color: var(--leagueflow-text);
+	min-width: 2.5rem;
+	min-height: 2.5rem;
+	padding: 0.35rem 0.7rem;
+	border: 1px solid var(--lf-border);
+	border-radius: var(--lf-radius);
+	background: var(--lf-card);
+	color: var(--lf-card-foreground);
 	font-size: 0.88rem;
 	line-height: 1;
 }
 
 .leagueflow-calendar__nav-btn:hover {
-	border-color: var(--leagueflow-accent);
-	color: var(--leagueflow-accent);
+	border-color: var(--lf-primary);
+	color: var(--lf-primary);
 }
 
 .leagueflow-calendar__panel-clear {
+	min-height: 2rem;
 	border: 0;
 	background: none;
 	padding: 0;
-	color: var(--leagueflow-accent);
+	color: var(--lf-primary);
 	font: inherit;
 	font-size: 0.82rem;
 	cursor: pointer;
@@ -1486,99 +1819,151 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 	white-space: nowrap;
 }
 
+/* Count pill shared by list dates and the day panel. */
+.leagueflow-calendar__count {
+	display: inline-flex;
+	align-items: center;
+	flex: none;
+	padding: 0.1rem 0.55rem;
+	border-radius: var(--lf-radius-pill);
+	background: var(--lf-muted);
+	color: var(--lf-muted-foreground);
+	font-size: 0.72rem;
+	font-weight: 600;
+	line-height: 1.5;
+	white-space: nowrap;
+}
+
 .leagueflow-calendar__stage {
 	min-width: 0;
+}
+
+/* Week/Day grids have a fixed minimum width; scroll them inside the board
+   instead of letting the board's overflow clip the later days. */
+.leagueflow-calendar.is-view-week .leagueflow-calendar__stage,
+.leagueflow-calendar.is-view-day .leagueflow-calendar__stage {
+	overflow-x: auto;
 }
 
 .leagueflow-calendar__weekdays,
 .leagueflow-calendar__grid {
 	display: grid;
 	grid-template-columns: repeat(7, minmax(0, 1fr));
-	gap: 0.35rem;
+	gap: 0.4rem;
 }
 
 .leagueflow-calendar__weekdays {
-	margin-bottom: 0.35rem;
+	margin-bottom: 0.4rem;
 }
 
 .leagueflow-calendar__weekday {
-	padding: 0.3rem 0;
-	color: var(--leagueflow-muted);
+	padding: 0.3rem 0.1rem;
+	color: var(--lf-muted-foreground);
+	font-family: var(--lf-font-label);
 	font-size: 0.72rem;
 	font-weight: 700;
+	letter-spacing: var(--lf-label-tracking);
 	text-align: left;
 	text-transform: uppercase;
 }
 
+/* Month cells: tall cards with a large day number (CampusManager month view). */
 .leagueflow-calendar__day {
 	position: relative;
 	display: flex;
 	flex-direction: column;
 	align-items: stretch;
-	min-height: 7.8rem;
-	padding: 0.55rem;
-	border: 1px solid var(--leagueflow-border);
-	border-radius: 8px;
-	background: var(--leagueflow-surface);
-	color: var(--leagueflow-text);
+	min-height: 7.5rem;
+	padding: 0.5rem;
+	border: 1px solid var(--lf-border);
+	border-radius: var(--lf-radius-sm);
+	background: var(--lf-card);
+	color: var(--lf-card-foreground);
 	text-align: left;
 	transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 
 .leagueflow-calendar__day.is-outside {
-	background: transparent;
-	color: var(--leagueflow-muted);
-	opacity: 0.45;
+	background: var(--lf-muted);
+	color: var(--lf-muted-foreground);
+	opacity: 0.55;
 }
 
-.leagueflow-calendar__day.has-games:hover,
+.leagueflow-calendar__day.has-games:hover {
+	border-color: var(--lf-border-strong);
+	box-shadow: var(--lf-shadow);
+}
+
 .leagueflow-calendar__day.is-selected {
-	border-color: var(--leagueflow-accent);
-	box-shadow: inset 0 0 0 1px var(--leagueflow-accent);
+	border-color: var(--lf-primary);
+	box-shadow: inset 0 0 0 1px var(--lf-primary);
+}
+
+.leagueflow-calendar__day-num {
+	font-family: var(--lf-font-display);
+	font-size: 1.35rem;
+	font-weight: 700;
+	line-height: 1;
 }
 
 .leagueflow-calendar__day.is-today .leagueflow-calendar__day-num {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	width: 1.6rem;
-	height: 1.6rem;
+	align-self: flex-start;
+	min-width: 2rem;
+	height: 2rem;
 	border-radius: 50%;
-	background: var(--leagueflow-accent);
-	color: #fff;
+	background: var(--lf-primary);
+	color: var(--lf-primary-foreground);
+	font-size: 1.05rem;
 }
 
 .leagueflow-calendar__day-summary {
 	display: grid;
 	gap: 0.25rem;
-	margin-top: 0.55rem;
+	margin-top: 0.5rem;
 	min-width: 0;
 }
 
 .leagueflow-calendar__day-event {
+	position: relative;
 	display: block;
 	overflow: hidden;
-	padding: 0.22rem 0.35rem;
-	border-left: 3px solid var(--lf-cal-accent, var(--leagueflow-accent));
-	border-radius: 4px;
-	background: rgba(10, 75, 120, 0.07);
-	color: var(--leagueflow-text);
+	padding: 0.2rem 0.35rem 0.2rem 0.7rem;
+	border-radius: var(--lf-radius-sm);
+	background: var(--lf-muted);
+	color: var(--lf-card-foreground);
 	font-size: 0.72rem;
 	line-height: 1.25;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
+.leagueflow-calendar__day-event::before {
+	content: "";
+	position: absolute;
+	top: 0.2rem;
+	bottom: 0.2rem;
+	left: 0.25rem;
+	width: 3px;
+	border-radius: var(--lf-radius-pill);
+	background: var(--lf-cal-accent, var(--lf-primary));
+}
+
 .leagueflow-calendar__day-more {
-	color: var(--leagueflow-muted);
+	color: var(--lf-muted-foreground);
 	font-size: 0.72rem;
+	font-weight: 600;
 }
 
 .leagueflow-calendar__day-heading {
 	margin: 1rem 0 0.5rem;
-	color: var(--leagueflow-muted);
-	font-size: 0.78rem;
+	color: var(--lf-muted-foreground);
+	font-family: var(--lf-font-label);
+	font-size: 0.75rem;
 	font-weight: 700;
+	letter-spacing: var(--lf-label-tracking);
 	text-transform: uppercase;
 }
 
@@ -1586,21 +1971,37 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 	margin-top: 0;
 }
 
+/* Event cards: card shell with a rounded accent pill on the left. */
 .leagueflow-calendar__event {
+	position: relative;
+	box-sizing: border-box;
 	display: block;
 	width: 100%;
 	margin: 0 0 0.6rem;
-	padding: 0.72rem 0.85rem;
-	border: 1px solid var(--leagueflow-border);
-	border-left: 4px solid var(--lf-cal-accent, var(--leagueflow-accent));
-	border-radius: 8px;
-	background: var(--leagueflow-surface);
-	color: var(--leagueflow-text);
+	padding: 0.75rem 0.85rem 0.75rem 1.5rem;
+	border: 1px solid var(--lf-border);
+	border-radius: var(--lf-radius);
+	background: var(--lf-card);
+	color: var(--lf-card-foreground);
+	box-shadow: var(--lf-shadow-sm);
 	text-align: left;
+	transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.leagueflow-calendar__event::before {
+	content: "";
+	position: absolute;
+	top: 0.7rem;
+	bottom: 0.7rem;
+	left: 0.6rem;
+	width: 4px;
+	border-radius: var(--lf-radius-pill);
+	background: var(--lf-cal-accent, var(--lf-primary));
 }
 
 .leagueflow-calendar__event:hover {
-	border-color: var(--lf-cal-accent, var(--leagueflow-accent));
+	border-color: var(--lf-cal-accent, var(--lf-primary));
+	box-shadow: var(--lf-shadow);
 }
 
 .leagueflow-calendar__event:last-child {
@@ -1615,10 +2016,12 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
-	gap: 0.45rem 0.6rem;
+	gap: 0.35rem 0.6rem;
 	margin-bottom: 0.35rem;
-	color: var(--leagueflow-muted);
-	font-size: 0.76rem;
+	color: var(--lf-muted-foreground);
+	font-family: var(--lf-font-label);
+	font-size: 0.74rem;
+	letter-spacing: var(--lf-label-tracking);
 }
 
 .leagueflow-calendar__event-sport,
@@ -1641,25 +2044,28 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 .leagueflow-calendar__event-requires-registration {
 	display: inline-flex;
 	width: fit-content;
-	margin-top: 0.45rem;
-	padding: 0.12rem 0.5rem;
-	border-radius: 999px;
-	background: var(--leagueflow-border);
-	color: var(--leagueflow-text);
-	font-size: 0.72rem;
+	padding: 0.1rem 0.5rem;
+	border-radius: var(--lf-radius-pill);
+	background: var(--lf-muted);
+	color: var(--lf-card-foreground);
+	font-size: 0.7rem;
 	font-weight: 700;
 	text-transform: uppercase;
 }
 
+.leagueflow-calendar__event-requires-registration {
+	margin-top: 0.45rem;
+}
+
 .leagueflow-calendar__event-status.is-finished {
-	background: var(--leagueflow-success);
-	color: #fff;
+	background: var(--lf-success);
+	color: var(--lf-success-foreground);
 }
 
 .leagueflow-calendar__event-status.is-cancelled,
 .leagueflow-calendar__event-status.is-postponed {
-	background: #8a3b3b;
-	color: #fff;
+	background: var(--lf-danger);
+	color: var(--lf-danger-foreground);
 }
 
 .leagueflow-calendar__event-teams {
@@ -1683,8 +2089,13 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 }
 
 .leagueflow-calendar__event-score {
-	color: var(--leagueflow-muted);
+	padding: 0.05rem 0.5rem;
+	border-radius: var(--lf-radius-pill);
+	background: var(--lf-muted);
+	color: var(--lf-muted-foreground);
+	font-family: var(--lf-font-display);
 	font-size: 0.86rem;
+	font-variant-numeric: tabular-nums;
 	white-space: nowrap;
 }
 
@@ -1695,42 +2106,62 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 
 .leagueflow-calendar__event-meta {
 	margin: 0.35rem 0 0;
-	color: var(--leagueflow-muted);
+	color: var(--lf-muted-foreground);
 	font-size: 0.82rem;
 }
 
+.leagueflow-calendar__event-result {
+	margin: 0.35rem 0 0;
+	font-size: 0.82rem;
+	font-weight: 600;
+}
+
+/* List view: date heading, a hairline that runs to a count pill, then cards. */
 .leagueflow-calendar__list-view {
 	display: grid;
-	gap: 1rem;
+	gap: 1.25rem;
 }
 
 .leagueflow-calendar__list-group {
 	display: grid;
-	gap: 0.55rem;
+	gap: 0.6rem;
+}
+
+.leagueflow-calendar__list-group .leagueflow-calendar__event {
+	margin: 0;
 }
 
 .leagueflow-calendar__list-date {
-	padding-bottom: 0.35rem;
-	border-bottom: 1px solid var(--leagueflow-border);
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
 }
 
 .leagueflow-calendar__list-date h4 {
 	margin: 0;
-	font-size: 0.98rem;
+	flex: none;
+	color: var(--lf-card-foreground);
+	font-family: var(--lf-font-display);
+	font-size: 1rem;
+	text-transform: var(--lf-display-transform);
 }
 
-.leagueflow-calendar__list-date span {
-	color: var(--leagueflow-muted);
-	font-size: 0.8rem;
+.leagueflow-calendar__list-rule {
+	flex: 1 1 auto;
+	min-width: 1rem;
+	height: 1px;
+	background: var(--lf-border);
 }
 
 .leagueflow-calendar__load-more {
 	justify-self: center;
-	padding: 0.55rem 0.95rem;
-	border: 1px solid var(--leagueflow-border);
-	border-radius: 8px;
-	background: var(--leagueflow-text);
-	color: #fff;
+	min-height: 2.5rem;
+	padding: 0.55rem 1.1rem;
+	border: 1px solid var(--lf-primary);
+	border-radius: var(--lf-radius);
+	background: var(--lf-primary);
+	color: var(--lf-primary-foreground);
+	font-weight: 600;
 }
 
 .leagueflow-calendar__week-view,
@@ -1749,9 +2180,9 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 }
 
 .leagueflow-calendar__week-head {
-	border: 1px solid var(--leagueflow-border);
+	border: 1px solid var(--lf-border);
 	border-bottom: 0;
-	border-radius: 8px 8px 0 0;
+	border-radius: var(--lf-radius) var(--lf-radius) 0 0;
 	background: var(--lf-cal-muted-bg);
 }
 
@@ -1759,7 +2190,7 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 .leagueflow-calendar__time-head {
 	min-height: 3.2rem;
 	padding: 0.65rem;
-	border-left: 1px solid var(--leagueflow-border);
+	border-left: 1px solid var(--lf-border);
 }
 
 .leagueflow-calendar__time-head {
@@ -1772,26 +2203,33 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 }
 
 .leagueflow-calendar__week-day-head span {
-	color: var(--leagueflow-muted);
-	font-size: 0.75rem;
+	color: var(--lf-muted-foreground);
+	font-family: var(--lf-font-label);
+	font-size: 0.72rem;
+	letter-spacing: var(--lf-label-tracking);
 	text-transform: uppercase;
 }
 
+.leagueflow-calendar__week-day-head strong {
+	font-family: var(--lf-font-display);
+	font-size: 1.15rem;
+}
+
 .leagueflow-calendar__week-day-head.is-today strong {
-	color: var(--leagueflow-accent);
+	color: var(--lf-primary);
 }
 
 .leagueflow-calendar__week-grid {
-	border: 1px solid var(--leagueflow-border);
-	border-radius: 0 0 8px 8px;
+	border: 1px solid var(--lf-border);
+	border-radius: 0 0 var(--lf-radius) var(--lf-radius);
 	overflow: hidden;
 }
 
 .leagueflow-calendar__day-view {
 	display: grid;
 	grid-template-columns: 4.5rem minmax(0, 1fr);
-	border: 1px solid var(--leagueflow-border);
-	border-radius: 8px;
+	border: 1px solid var(--lf-border);
+	border-radius: var(--lf-radius);
 	overflow: hidden;
 }
 
@@ -1802,12 +2240,12 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 .leagueflow-calendar__time-slot,
 .leagueflow-calendar__hour-line {
 	height: 72px;
-	border-bottom: 1px solid var(--leagueflow-border);
+	border-bottom: 1px solid var(--lf-border);
 }
 
 .leagueflow-calendar__time-slot {
 	padding: 0.45rem;
-	color: var(--leagueflow-muted);
+	color: var(--lf-muted-foreground);
 	font-size: 0.72rem;
 }
 
@@ -1815,8 +2253,8 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 .leagueflow-calendar__day-col {
 	position: relative;
 	min-height: 100%;
-	border-left: 1px solid var(--leagueflow-border);
-	background: var(--leagueflow-surface);
+	border-left: 1px solid var(--lf-border);
+	background: var(--lf-card);
 }
 
 .leagueflow-calendar__time-event {
@@ -1825,14 +2263,37 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 	right: 0.25rem;
 	z-index: 1;
 	overflow: hidden;
-	padding: 0.45rem 0.5rem;
-	border: 1px solid var(--lf-cal-accent, var(--leagueflow-accent));
-	border-left-width: 4px;
-	border-radius: 6px;
-	background: #fff;
-	color: var(--leagueflow-text);
+	padding: 0.4rem 0.5rem 0.4rem 0.85rem;
+	border: 1px solid var(--lf-border);
+	border-radius: var(--lf-radius-sm);
+	background: var(--lf-card);
+	color: var(--lf-card-foreground);
 	text-align: left;
-	box-shadow: 0 6px 14px rgba(15, 35, 28, 0.08);
+	box-shadow: var(--lf-shadow);
+}
+
+.leagueflow-calendar__time-event::before {
+	content: "";
+	position: absolute;
+	top: 0.35rem;
+	bottom: 0.35rem;
+	left: 0.3rem;
+	width: 3px;
+	border-radius: var(--lf-radius-pill);
+	background: var(--lf-cal-accent, var(--lf-primary));
+}
+
+/* Overlapping events in one day column share it in lanes (set by calendar.js). */
+.leagueflow-calendar__time-event.is-concurrent {
+	right: auto;
+	left: calc(0.25rem + (100% - 0.5rem) * var(--lf-cal-lane, 0) / var(--lf-cal-lanes, 1));
+	width: calc((100% - 0.5rem) / var(--lf-cal-lanes, 1) - 2px);
+	padding-right: 0.35rem;
+	padding-left: 0.75rem;
+}
+
+.leagueflow-calendar__time-event:focus-visible {
+	z-index: 2;
 }
 
 .leagueflow-calendar__time-event strong,
@@ -1848,20 +2309,20 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 }
 
 .leagueflow-calendar__time-event span {
-	color: var(--leagueflow-muted);
+	color: var(--lf-muted-foreground);
 	font-size: 0.72rem;
 }
 
 .leagueflow-calendar__empty {
 	margin: 0 0 0.6rem;
-	color: var(--leagueflow-muted);
+	color: var(--lf-muted-foreground);
 }
 
 .leagueflow-calendar__empty--large,
 .leagueflow-calendar__empty--time {
 	padding: 1rem;
-	border: 1px dashed var(--leagueflow-border);
-	border-radius: 8px;
+	border: 1px dashed var(--lf-border-strong);
+	border-radius: var(--lf-radius);
 	background: var(--lf-cal-muted-bg);
 }
 
@@ -1893,35 +2354,39 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 .leagueflow-calendar__dialog-card {
 	position: relative;
 	z-index: 1;
-	width: min(620px, 100%);
-	max-height: min(760px, calc(100vh - 2rem));
+	box-sizing: border-box;
+	width: min(640px, 95vw);
+	max-height: min(760px, 90vh);
 	overflow-y: auto;
-	padding: 1.25rem;
-	border-radius: 8px;
-	background: #fff;
-	color: var(--leagueflow-text);
-	box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+	padding: 1.5rem;
+	border: 1px solid var(--lf-border);
+	border-radius: var(--lf-radius);
+	background: var(--lf-card);
+	color: var(--lf-card-foreground);
+	box-shadow: var(--lf-shadow-lg);
 }
 
 .leagueflow-calendar__dialog-close {
 	position: absolute;
-	top: 0.7rem;
-	right: 0.7rem;
-	width: 2rem;
-	height: 2rem;
-	border: 1px solid var(--leagueflow-border);
+	top: 0.75rem;
+	right: 0.75rem;
+	width: 2.5rem;
+	height: 2.5rem;
+	border: 1px solid var(--lf-border);
 	border-radius: 50%;
-	background: #fff;
-	color: var(--leagueflow-text);
+	background: var(--lf-card);
+	color: var(--lf-card-foreground);
 	font-size: 1.25rem;
 	line-height: 1;
 	cursor: pointer;
 }
 
 .leagueflow-calendar__dialog-title {
-	margin: 0 2.5rem 0.75rem 0;
-	font-size: 1.35rem;
+	margin: 0 2.75rem 0.75rem 0;
+	font-family: var(--lf-font-display);
+	font-size: 1.4rem;
 	line-height: 1.2;
+	text-transform: var(--lf-display-transform);
 }
 
 .leagueflow-calendar__dialog-badges,
@@ -1932,17 +2397,18 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 }
 
 .leagueflow-calendar__dialog-badge {
-	padding: 0.18rem 0.55rem;
-	border-radius: 999px;
-	background: var(--lf-cal-accent, var(--leagueflow-accent));
-	color: #fff;
+	padding: 0.15rem 0.6rem;
+	border-radius: var(--lf-radius-pill);
+	background: var(--lf-cal-accent, var(--lf-primary));
+	color: var(--lf-primary-foreground);
 	font-size: 0.75rem;
 	font-weight: 700;
 }
 
 .leagueflow-calendar__dialog-badge.is-cancelled,
 .leagueflow-calendar__dialog-badge.is-postponed {
-	background: #8a3b3b;
+	background: var(--lf-danger);
+	color: var(--lf-danger-foreground);
 }
 
 .leagueflow-calendar__dialog-details {
@@ -1950,11 +2416,18 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 	grid-template-columns: max-content minmax(0, 1fr);
 	gap: 0.45rem 0.9rem;
 	margin: 1rem 0;
+	padding: 0.85rem 1rem;
+	border-radius: var(--lf-radius);
+	background: var(--lf-muted);
 }
 
 .leagueflow-calendar__dialog-details dt {
-	color: var(--leagueflow-muted);
+	color: var(--lf-muted-foreground);
+	font-family: var(--lf-font-label);
+	font-size: 0.8rem;
 	font-weight: 700;
+	letter-spacing: var(--lf-label-tracking);
+	text-transform: var(--lf-label-transform);
 }
 
 .leagueflow-calendar__dialog-details dd {
@@ -1974,20 +2447,20 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	min-height: 2.35rem;
-	padding: 0.45rem 0.75rem;
-	border: 1px solid var(--leagueflow-border);
-	border-radius: 8px;
-	background: var(--leagueflow-surface);
-	color: var(--leagueflow-text);
+	min-height: 2.5rem;
+	padding: 0.45rem 0.85rem;
+	border: 1px solid var(--lf-border);
+	border-radius: var(--lf-radius);
+	background: var(--lf-card);
+	color: var(--lf-card-foreground);
 	font-size: 0.9rem;
 	text-decoration: none;
 }
 
 .leagueflow-calendar__dialog-action:hover,
 .leagueflow-calendar__dialog-action:focus {
-	border-color: var(--leagueflow-accent);
-	color: var(--leagueflow-accent);
+	border-color: var(--lf-primary);
+	color: var(--lf-primary);
 	text-decoration: none;
 }
 
@@ -2011,6 +2484,7 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 		gap: 0.75rem;
 	}
 
+	/* Sticky toolbar: views and search stay reachable while scrolling the month. */
 	.leagueflow-calendar__toolbar {
 		align-items: stretch;
 		position: sticky;
@@ -2018,14 +2492,15 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 		z-index: 10;
 		margin: 0 -0.5rem;
 		padding: 0.5rem;
-		border: 1px solid var(--leagueflow-border);
-		border-radius: 8px;
-		background: color-mix(in srgb, var(--leagueflow-surface) 94%, transparent);
+		border: 1px solid var(--lf-border);
+		border-radius: var(--lf-radius);
+		background: color-mix(in srgb, var(--lf-card) 94%, transparent);
 		backdrop-filter: blur(12px);
 	}
 
 	.leagueflow-calendar__view-tabs,
 	.leagueflow-calendar__search {
+		box-sizing: border-box;
 		width: 100%;
 		max-width: none;
 	}
@@ -2033,8 +2508,13 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 	.leagueflow-calendar__view {
 		flex: 1;
 		min-width: 0;
+		min-height: 2.75rem;
 		padding-inline: 0.45rem;
 		font-size: 0.82rem;
+	}
+
+	.leagueflow-calendar__search input {
+		min-height: 2.75rem;
 	}
 
 	.leagueflow-calendar__view[data-calendar-view="week"] {
@@ -2044,9 +2524,11 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 	.leagueflow-calendar__filters {
 		margin-inline: -0.5rem;
 		overflow: hidden;
+		gap: 0.4rem;
 	}
 
 	.leagueflow-calendar__chips {
+		box-sizing: border-box;
 		flex-wrap: nowrap;
 		width: 100%;
 		overflow-x: auto;
@@ -2060,14 +2542,14 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 
 	.leagueflow-calendar__chip {
 		flex: 0 0 auto;
-		min-height: 2.05rem;
-		padding: 0.35rem 0.65rem;
+		min-height: 2.75rem;
+		padding: 0.35rem 0.75rem;
 		font-size: 0.8rem;
 	}
 
 	.leagueflow-calendar__board,
 	.leagueflow-calendar__panel {
-		padding: 0.75rem;
+		padding: 0.85rem;
 		box-shadow: none;
 	}
 
@@ -2078,25 +2560,23 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 	}
 
 	.leagueflow-calendar__month {
-		font-size: 1.05rem;
+		font-size: 1.25rem;
 	}
 
 	.leagueflow-calendar__nav {
-		gap: 0.25rem;
+		gap: 0.3rem;
 	}
 
 	.leagueflow-calendar__nav-btn {
-		min-width: 2.05rem;
-		min-height: 2rem;
-		padding: 0.3rem 0.48rem;
-		font-size: 0.78rem;
+		min-width: 2.75rem;
+		min-height: 2.75rem;
+		padding: 0.3rem 0.5rem;
+		font-size: 0.82rem;
 	}
 
 	.leagueflow-calendar__weekdays {
-		display: grid;
-		grid-template-columns: repeat(7, minmax(0, 1fr));
-		gap: 0.25rem;
-		margin-bottom: 0.25rem;
+		gap: 0.1rem;
+		margin-bottom: 0.2rem;
 	}
 
 	.leagueflow-calendar__weekday {
@@ -2105,84 +2585,112 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 		text-align: center;
 	}
 
+	/* Compact month: a 7-column number grid with one dot per event. */
 	.leagueflow-calendar__grid {
-		grid-template-columns: repeat(7, minmax(0, 1fr));
-		gap: 0.25rem;
+		gap: 0.1rem;
 	}
 
+	/* Square cells: 44px at 390px wide; narrower phones shrink them rather than clip Saturday. */
 	.leagueflow-calendar__day {
 		aspect-ratio: 1;
 		align-items: center;
 		justify-content: flex-start;
+		min-width: 0;
 		min-height: 0;
-		padding: 0.28rem;
-		border-radius: 6px;
+		padding: 0.35rem 0.2rem;
+		border-color: transparent;
+		background: transparent;
 		text-align: center;
 	}
 
 	.leagueflow-calendar__day.is-outside {
 		display: flex;
-		background: var(--lf-cal-muted-bg);
-		opacity: 0.38;
-	}
-
-	.leagueflow-calendar__day-num {
-		font-size: 0.82rem;
-		font-weight: 700;
-		line-height: 1;
-	}
-
-	.leagueflow-calendar__day.is-today .leagueflow-calendar__day-num {
-		width: 1.35rem;
-		height: 1.35rem;
-		font-size: 0.78rem;
+		background: transparent;
+		opacity: 0.35;
 	}
 
 	.leagueflow-calendar__day.has-games {
-		border-color: color-mix(in srgb, var(--leagueflow-accent) 35%, var(--leagueflow-border));
+		background: var(--lf-muted);
+	}
+
+	.leagueflow-calendar__day.has-games:hover {
+		box-shadow: none;
+	}
+
+	.leagueflow-calendar__day-num {
+		font-size: 0.95rem;
+	}
+
+	.leagueflow-calendar__day.is-today .leagueflow-calendar__day-num {
+		align-self: center;
+		min-width: 1.6rem;
+		height: 1.6rem;
+		font-size: 0.85rem;
+	}
+
+	.leagueflow-calendar__day.is-selected {
+		border-color: var(--lf-primary);
+		background: var(--lf-primary);
+		box-shadow: none;
+		color: var(--lf-primary-foreground);
+	}
+
+	/* The green fill already marks the selected day; no extra today circle. */
+	.leagueflow-calendar__day.is-selected.is-today .leagueflow-calendar__day-num {
+		background: none;
+		color: inherit;
+	}
+
+	/* Sport dots would vanish on the green fill. */
+	.leagueflow-calendar__day.is-selected .leagueflow-calendar__day-event {
+		background: var(--lf-primary-foreground);
 	}
 
 	.leagueflow-calendar__day-summary {
 		position: absolute;
-		right: 0.18rem;
-		bottom: 0.24rem;
-		left: 0.18rem;
+		right: 0.15rem;
+		bottom: 0.3rem;
+		left: 0.15rem;
 		display: flex;
 		justify-content: center;
-		gap: 0.12rem;
+		align-items: center;
+		gap: 0.15rem;
 		margin-top: 0;
 	}
 
 	.leagueflow-calendar__day-event {
-		width: 0.34rem;
-		height: 0.34rem;
+		width: 0.38rem;
+		height: 0.38rem;
 		padding: 0;
-		border: 0;
 		border-radius: 999px;
-		background: var(--lf-cal-accent, var(--leagueflow-accent));
+		background: var(--lf-cal-accent, var(--lf-primary));
 		font-size: 0;
 		line-height: 0;
 	}
 
+	.leagueflow-calendar__day-event::before {
+		display: none;
+	}
+
+	.leagueflow-calendar__day.is-selected .leagueflow-calendar__day-event {
+		box-shadow: 0 0 0 1px var(--lf-primary-foreground);
+	}
+
 	.leagueflow-calendar__day-more {
 		align-self: center;
-		color: var(--leagueflow-muted);
+		color: inherit;
 		font-size: 0.56rem;
 		font-weight: 700;
 		line-height: 1;
 	}
 
-	.leagueflow-calendar__panel {
-		border-left: 4px solid var(--leagueflow-accent);
-	}
-
 	.leagueflow-calendar__panel-title {
-		font-size: 0.92rem;
-		line-height: 1.25;
+		font-size: 0.98rem;
 	}
 
 	.leagueflow-calendar__panel-clear {
-		font-size: 0.76rem;
+		min-height: 2.75rem;
+		font-size: 0.8rem;
 	}
 
 	.leagueflow-calendar.is-view-list .leagueflow-calendar__panel {
@@ -2191,11 +2699,11 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 
 	.leagueflow-calendar__event {
 		margin-bottom: 0.5rem;
-		padding: 0.72rem;
+		padding: 0.75rem 0.75rem 0.75rem 1.4rem;
 	}
 
 	.leagueflow-calendar__event-top {
-		gap: 0.35rem 0.5rem;
+		gap: 0.3rem 0.5rem;
 		font-size: 0.7rem;
 	}
 
@@ -2211,14 +2719,11 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 
 	.leagueflow-calendar__event-score {
 		width: fit-content;
-		padding: 0.08rem 0.45rem;
-		border-radius: 999px;
-		background: var(--lf-cal-muted-bg);
-		font-size: 0.72rem;
+		font-size: 0.74rem;
 	}
 
 	.leagueflow-calendar__list-view {
-		gap: 0.85rem;
+		gap: 1rem;
 	}
 
 	.leagueflow-calendar__list-group {
@@ -2226,12 +2731,8 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 	}
 
 	.leagueflow-calendar__list-date h4 {
-		font-size: 0.9rem;
+		font-size: 0.92rem;
 		line-height: 1.2;
-	}
-
-	.leagueflow-calendar__list-date span {
-		font-size: 0.72rem;
 	}
 
 	.leagueflow-calendar__week-view,
@@ -2255,10 +2756,7 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 		overflow-x: auto;
 	}
 
-	.leagueflow-calendar__dialog-details {
-		grid-template-columns: 1fr;
-	}
-
+	/* Event details open as a bottom sheet. */
 	.leagueflow-calendar__dialog {
 		align-items: end;
 		place-items: end center;
@@ -2269,7 +2767,7 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 		width: 100%;
 		max-height: min(86dvh, 720px);
 		padding: 1rem;
-		border-radius: 8px 8px 0 0;
+		border-radius: var(--lf-radius) var(--lf-radius) 0 0;
 	}
 
 	.leagueflow-calendar__dialog-card::before {
@@ -2279,15 +2777,21 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 		height: 0.25rem;
 		margin: 0 auto 0.85rem;
 		border-radius: 999px;
-		background: var(--leagueflow-border);
+		background: var(--lf-border-strong);
+	}
+
+	.leagueflow-calendar__dialog-close {
+		width: 2.75rem;
+		height: 2.75rem;
 	}
 
 	.leagueflow-calendar__dialog-title {
-		margin-right: 2.25rem;
-		font-size: 1.12rem;
+		margin-right: 3rem;
+		font-size: 1.15rem;
 	}
 
 	.leagueflow-calendar__dialog-details {
+		grid-template-columns: 1fr;
 		gap: 0.2rem;
 		margin: 0.85rem 0;
 		font-size: 0.9rem;
@@ -2300,8 +2804,39 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 
 	.leagueflow-calendar__dialog-action {
 		width: 100%;
+		min-height: 2.75rem;
 	}
 }
+
+@media (max-width: 360px) {
+	.leagueflow-calendar__board,
+	.leagueflow-calendar__panel {
+		padding: 0.6rem;
+	}
+
+	.leagueflow-calendar__grid,
+	.leagueflow-calendar__weekdays {
+		gap: 0.1rem;
+	}
+}
+
+/* Phone month: the selected day's events are the footer of the month card. */
+.leagueflow-calendar.is-mobile-calendar.is-view-month:not(.is-month-popover) .leagueflow-calendar__layout {
+	gap: 0;
+}
+
+.leagueflow-calendar.is-mobile-calendar.is-view-month:not(.is-month-popover) .leagueflow-calendar__layout:has(> .leagueflow-calendar__panel:not([hidden])) > .leagueflow-calendar__board {
+	border-bottom-right-radius: 0;
+	border-bottom-left-radius: 0;
+}
+
+.leagueflow-calendar.is-mobile-calendar.is-view-month:not(.is-month-popover) .leagueflow-calendar__panel {
+	border-top: 0;
+	border-top-left-radius: 0;
+	border-top-right-radius: 0;
+	background: color-mix(in srgb, var(--lf-muted) 45%, var(--lf-card));
+}
+
 
 /* Standings point adjustment (LeagueFlow #3) */
 .leagueflow-table__adjustment,
@@ -2960,5 +3495,641 @@ body:not(.home) .unbc-page-body > .wp-block-post-content > .leagueflow-portal.al
 
 	.leagueflow-portal__step-actions button {
 		width: 100%;
+	}
+}
+
+/* Respect hidden filter/pagination containers even when the component uses flex. */
+.leagueflow-calendar [data-calendar-sport-filters][hidden],
+.leagueflow-calendar [data-calendar-type-filters][hidden],
+.leagueflow-calendar [data-calendar-pagination][hidden] {
+	display: none;
+}
+
+/* Range-aware calendar layouts, shared with the Gutenberg preview. */
+.leagueflow-calendar__layout { position: relative; }
+.leagueflow-calendar [hidden] { display: none !important; }
+.leagueflow-calendar.is-view-list .leagueflow-calendar__layout,
+.leagueflow-calendar.is-view-month.is-month-dropdown .leagueflow-calendar__layout,
+.leagueflow-calendar.is-view-month.is-month-popover .leagueflow-calendar__layout { grid-template-columns: minmax(0, 1fr); }
+.leagueflow-calendar.is-view-month.is-month-dropdown .leagueflow-calendar__panel { position: static; max-height: none; }
+.leagueflow-calendar.is-view-month.is-month-popover .leagueflow-calendar__panel { position: absolute; z-index: 30; width: min(360px, 100%); max-height: min(440px, 70vh); background: var(--lf-cal-panel); box-shadow: var(--lf-shadow-lg); box-sizing: border-box; }
+.leagueflow-calendar__pagination { padding: 0.8rem 1rem; border: 1px solid var(--lf-border); border-radius: var(--lf-radius); background: var(--lf-cal-panel); color: var(--lf-card-foreground); }
+.leagueflow-calendar__pagination p { margin: 0 0 0.6rem; }
+.leagueflow-calendar__jump input { min-width: 0; width: 9.2rem; min-height: 2.25rem; padding: 0.25rem 0.4rem; border: 1px solid var(--lf-border); border-radius: var(--lf-radius-sm); background: var(--lf-cal-panel); color: var(--lf-card-foreground); font: inherit; font-size: 0.85rem; }
+.leagueflow-calendar__nav { flex-wrap: wrap; align-items: center; }
+.leagueflow-calendar :is(button, input, a):focus-visible { outline: 3px solid var(--lf-ring); outline-offset: 3px; }
+.leagueflow-calendar[aria-busy="true"] .leagueflow-calendar__stage { opacity: 0.7; }
+@media (min-width: 1021px) {
+  .leagueflow-calendar.is-view-month.is-month-sidebar.is-sidebar-left .leagueflow-calendar__layout { grid-template-columns: minmax(300px, 0.75fr) minmax(0, 1.45fr); }
+  .leagueflow-calendar.is-view-month.is-month-sidebar.is-sidebar-left .leagueflow-calendar__panel { grid-column: 1; grid-row: 1; }
+  .leagueflow-calendar.is-view-month.is-month-sidebar.is-sidebar-left .leagueflow-calendar__board { grid-column: 2; grid-row: 1; }
+}
+@media (max-width: 760px) {
+  .leagueflow-calendar__header { flex-wrap: wrap; }
+  .leagueflow-calendar__nav { width: 100%; }
+  .leagueflow-calendar__jump { margin-right: auto; }
+  .leagueflow-calendar__jump input { min-height: 2.75rem; }
+  .leagueflow-calendar.is-view-month.is-month-popover .leagueflow-calendar__panel { position: static; width: 100%; max-height: none; }
+}
+
+/* Personal registration document review, shared by all portal form paths. */
+.leagueflow-portal__consent {
+	min-width: 0;
+	margin: 1.25rem 0;
+	padding: 1.25rem;
+	border: 1px solid var(--leagueflow-border, #d7dfdc);
+	border-radius: 0.5rem;
+}
+.leagueflow-portal__consent > legend {
+	padding: 0 0.4rem;
+	font-weight: 700;
+}
+.leagueflow-portal__consent-document + .leagueflow-portal__consent-document {
+	margin-top: 1.25rem;
+	padding-top: 1.25rem;
+	border-top: 1px solid var(--leagueflow-border, #d7dfdc);
+}
+.leagueflow-portal__consent-document h4 {
+	margin: 0 0 0.6rem;
+}
+.leagueflow-portal__consent-document h4 small {
+	font-size: 0.85em;
+	font-weight: 400;
+}
+.leagueflow-portal__consent-document details {
+	margin: 0.5rem 0 0.9rem;
+}
+.leagueflow-portal__consent-document summary {
+	cursor: pointer;
+	font-weight: 600;
+}
+.leagueflow-portal__consent-document details > div {
+	padding-top: 0.5rem;
+	line-height: 1.6;
+	overflow-wrap: anywhere;
+}
+.leagueflow-portal__consent .leagueflow-portal__consent-check {
+	display: flex;
+	flex-direction: row;
+	align-items: flex-start;
+	gap: 0.65rem;
+	margin-top: 0.8rem;
+}
+.leagueflow-portal__consent .leagueflow-portal__consent-check input[type="checkbox"] {
+	flex: 0 0 auto;
+	width: 1.15rem;
+	height: 1.15rem;
+	margin: 0.15rem 0 0;
+}
+
+.leagueflow-table-wrap { max-width: 100%; overflow-x: auto; }
+
+/* Embedded calendars also adapt when the theme/editor gives them a narrow column. */
+.leagueflow-calendar.is-mobile-calendar .leagueflow-calendar__layout { grid-template-columns: minmax(0, 1fr) !important; }
+.leagueflow-calendar.is-mobile-calendar .leagueflow-calendar__board,
+.leagueflow-calendar.is-mobile-calendar .leagueflow-calendar__panel { grid-column: 1 !important; grid-row: auto !important; }
+.leagueflow-calendar.is-mobile-calendar.is-month-popover .leagueflow-calendar__panel { position: static; width: 100%; max-height: none; }
+.leagueflow-calendar.is-mobile-calendar .leagueflow-calendar__header { flex-wrap: wrap; }
+.leagueflow-calendar.is-mobile-calendar .leagueflow-calendar__nav { width: 100%; }
+
+/*
+ * Event posters: a card-sized poster in the event dialog that opens the full
+ * image in the same dialog, and a small thumbnail on list and panel cards.
+ */
+.leagueflow-calendar__poster {
+	display: block;
+	position: relative;
+	width: 100%;
+	margin: 0.75rem 0;
+	padding: 0;
+	border: 1px solid var(--lf-border);
+	border-radius: var(--lf-radius);
+	background: var(--lf-muted);
+	cursor: zoom-in;
+	overflow: hidden;
+}
+
+.leagueflow-calendar__poster img {
+	display: block;
+	width: 100%;
+	height: auto;
+	max-height: min(360px, 45vh);
+	object-fit: contain;
+}
+
+.leagueflow-calendar__poster-hint {
+	position: absolute;
+	right: 0.5rem;
+	bottom: 0.5rem;
+	padding: 0.2rem 0.6rem;
+	border-radius: 999px;
+	background: var(--lf-card);
+	color: var(--lf-card-foreground);
+	box-shadow: var(--lf-shadow-sm);
+	font-size: 0.8rem;
+}
+
+.leagueflow-calendar__poster:focus-visible {
+	outline: 2px solid var(--lf-ring, var(--lf-primary));
+	outline-offset: 2px;
+}
+
+.leagueflow-calendar__poster-viewer[hidden] {
+	display: none;
+}
+
+.leagueflow-calendar__dialog-card.is-viewing-poster [data-calendar-dialog-content] > :not(.leagueflow-calendar__poster-viewer) {
+	display: none;
+}
+
+/* A quiet row of text links above the full poster, clear of the close button. */
+.leagueflow-calendar__poster-bar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.25rem 1rem;
+	min-height: 2.75rem;
+	margin: 0 3rem 0.5rem 0;
+}
+
+.leagueflow-calendar__poster-link {
+	display: inline-flex;
+	align-items: center;
+	min-height: 2.75rem;
+	padding: 0;
+	border: 0;
+	background: none;
+	color: var(--lf-card-foreground);
+	font: inherit;
+	font-size: 0.9rem;
+	font-weight: 600;
+	text-decoration: none;
+	text-underline-offset: 0.2em;
+	cursor: pointer;
+}
+
+.leagueflow-calendar .leagueflow-calendar__poster-link:hover {
+	color: var(--lf-primary);
+	text-decoration: underline;
+}
+
+.leagueflow-calendar__poster-link:focus-visible {
+	outline: 2px solid var(--lf-ring, var(--lf-primary));
+	outline-offset: 2px;
+}
+
+.leagueflow-calendar__poster-full {
+	display: block;
+	width: 100%;
+	height: auto;
+	border-radius: var(--lf-radius);
+}
+
+.leagueflow-calendar__event.has-poster {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	column-gap: 0.75rem;
+}
+
+.leagueflow-calendar__event.has-poster > :not(.leagueflow-calendar__event-poster) {
+	grid-column: 1;
+}
+
+.leagueflow-calendar__event-poster {
+	grid-column: 2;
+	grid-row: 1 / span 4;
+	width: 56px;
+	height: 72px;
+	object-fit: cover;
+	border-radius: calc(var(--lf-radius) / 2);
+	border: 1px solid var(--lf-border);
+}
+
+
+/*
+ * Match lists, team pages and the player portal use the calendar's event
+ * card (render_match_card()), so a match looks the same everywhere.
+ */
+.leagueflow-match-stack > .leagueflow-calendar__event {
+	margin: 0;
+}
+
+a.leagueflow-calendar__event.is-link,
+a.leagueflow-calendar__event.is-link:visited {
+	color: var(--lf-card-foreground);
+	text-decoration: none;
+}
+
+a.leagueflow-calendar__event.is-link:hover,
+a.leagueflow-calendar__event.is-link:focus-visible {
+	border-color: var(--lf-cal-accent, var(--lf-primary));
+	box-shadow: var(--lf-shadow);
+}
+
+.leagueflow-calendar__event .leagueflow-rsvp {
+	margin-top: 0.6rem;
+	padding-top: 0.6rem;
+	border-top: 1px solid var(--lf-border);
+}
+
+/*
+ * Referee desk. Games use the shared match card; badges mark the referee's
+ * own games (conflicts), assignments and games waiting for a score.
+ */
+.leagueflow-calendar__event-status.is-conflict {
+	background: var(--lf-danger);
+	color: var(--lf-danger-foreground);
+}
+
+.leagueflow-calendar__event-status.is-assigned {
+	background: var(--lf-primary);
+	color: var(--lf-primary-foreground);
+}
+
+.leagueflow-calendar__event-status.is-needs {
+	background: var(--lf-accent);
+	color: var(--lf-accent-foreground);
+}
+
+.leagueflow-calendar__event-status.is-held {
+	background: transparent;
+	box-shadow: inset 0 0 0 1px var(--lf-border-strong);
+}
+
+.leagueflow-referee {
+	display: grid;
+	gap: 1.5rem;
+	color: var(--lf-card-foreground);
+}
+
+.leagueflow-referee h2,
+.leagueflow-referee h3 {
+	margin: 0;
+	font-family: var(--lf-font-display);
+	text-transform: var(--lf-display-transform);
+}
+
+.leagueflow-referee__eyebrow {
+	margin: 0 0 0.25rem;
+	color: var(--lf-muted-foreground);
+	font-family: var(--lf-font-label);
+	font-size: 0.75rem;
+	font-weight: 700;
+	letter-spacing: var(--lf-label-tracking);
+	text-transform: var(--lf-label-transform);
+}
+
+.leagueflow-referee__header p:last-child {
+	margin: 0.4rem 0 0;
+	color: var(--lf-muted-foreground);
+}
+
+.leagueflow-referee__muted {
+	margin: 0;
+	color: var(--lf-muted-foreground);
+	font-size: 0.9rem;
+}
+
+.leagueflow-referee__back {
+	margin: 0;
+}
+
+.leagueflow-referee__back a,
+.leagueflow-referee__section-head a {
+	color: var(--lf-primary);
+	font-weight: 600;
+	text-decoration: none;
+}
+
+.leagueflow-referee__notice,
+.leagueflow-referee__flag {
+	margin: 0;
+	padding: 0.75rem 1rem;
+	border-left: 4px solid var(--lf-success);
+	border-radius: var(--lf-radius-sm);
+	background: var(--lf-muted);
+}
+
+.leagueflow-referee__notice.is-error,
+.leagueflow-referee__flag {
+	border-left-color: var(--lf-danger);
+}
+
+.leagueflow-referee__search {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-end;
+	gap: 0.75rem;
+	padding: var(--lf-card-pad);
+	border: 1px solid var(--lf-border);
+	border-radius: var(--lf-radius);
+	background: var(--lf-card);
+}
+
+.leagueflow-referee__field {
+	display: grid;
+	gap: 0.3rem;
+	min-width: 9rem;
+}
+
+.leagueflow-referee__field--grow {
+	flex: 1 1 14rem;
+}
+
+.leagueflow-referee__field > span {
+	color: var(--lf-muted-foreground);
+	font-size: 0.75rem;
+	font-weight: 700;
+	letter-spacing: var(--lf-label-tracking);
+	text-transform: var(--lf-label-transform);
+}
+
+.leagueflow-referee input[type="search"],
+.leagueflow-referee input[type="number"],
+.leagueflow-referee select {
+	box-sizing: border-box;
+	width: 100%;
+	min-height: 2.75rem;
+	padding: 0.5rem 0.75rem;
+	border: 1px solid var(--lf-border-strong);
+	border-radius: var(--lf-radius-sm);
+	background: var(--lf-card);
+	color: var(--lf-card-foreground);
+	font: inherit;
+}
+
+.leagueflow-referee__button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 2.75rem;
+	padding: 0.6rem 1.1rem;
+	border: 1px solid var(--lf-primary);
+	border-radius: var(--lf-radius-sm);
+	background: var(--lf-primary);
+	color: var(--lf-primary-foreground);
+	font: inherit;
+	font-weight: 700;
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.leagueflow-referee__button.is-secondary {
+	background: transparent;
+	color: var(--lf-primary);
+}
+
+.leagueflow-referee a:focus-visible,
+.leagueflow-referee input:focus-visible,
+.leagueflow-referee select:focus-visible,
+.leagueflow-referee button:focus-visible {
+	outline: 3px solid var(--lf-ring);
+	outline-offset: 2px;
+}
+
+.leagueflow-referee__section {
+	display: grid;
+	gap: 0.75rem;
+}
+
+.leagueflow-referee__section-head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 0.5rem;
+}
+
+.leagueflow-referee__section-head > span {
+	color: var(--lf-muted-foreground);
+	font-size: 0.85rem;
+}
+
+.leagueflow-referee__chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.leagueflow-referee__chips a {
+	display: inline-flex;
+	gap: 0.4rem;
+	padding: 0.4rem 0.8rem;
+	border: 1px solid var(--lf-border);
+	border-radius: var(--lf-radius-pill);
+	background: var(--lf-card);
+	color: var(--lf-card-foreground);
+	font-weight: 600;
+	text-decoration: none;
+}
+
+.leagueflow-referee__chips span {
+	color: var(--lf-muted-foreground);
+	font-weight: 400;
+}
+
+.leagueflow-referee__pages {
+	display: flex;
+	justify-content: center;
+	gap: 1rem;
+}
+
+.leagueflow-referee__layout {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem);
+	align-items: start;
+	gap: 1.5rem;
+}
+
+.leagueflow-referee__rosters,
+.leagueflow-referee__team-games {
+	display: grid;
+	gap: 1.5rem;
+}
+
+.leagueflow-referee__score {
+	position: sticky;
+	top: 1rem;
+	display: grid;
+	gap: 0.75rem;
+	padding: var(--lf-card-pad);
+	border: 1px solid var(--lf-border);
+	border-radius: var(--lf-radius);
+	background: var(--lf-card);
+	box-shadow: var(--lf-shadow-sm);
+}
+
+.leagueflow-referee__form {
+	display: grid;
+	gap: 0.85rem;
+}
+
+.leagueflow-referee__scores {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+	align-items: end;
+	gap: 0.5rem;
+}
+
+.leagueflow-referee__scores > span {
+	padding-bottom: 0.65rem;
+	font-weight: 700;
+}
+
+.leagueflow-referee__scores label {
+	display: grid;
+	gap: 0.3rem;
+	min-width: 0;
+}
+
+.leagueflow-referee__scores label span {
+	overflow: hidden;
+	font-size: 0.85rem;
+	font-weight: 600;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.leagueflow-referee__scores input {
+	font-size: 1.4rem;
+	font-weight: 700;
+	text-align: center;
+}
+
+.leagueflow-referee__actions {
+	display: grid;
+	gap: 0.5rem;
+}
+
+.leagueflow-referee__score-now {
+	margin: 0;
+	font-size: 1.6rem;
+	font-weight: 700;
+}
+
+.leagueflow-referee__roster {
+	overflow: hidden;
+	border: 1px solid var(--lf-border);
+	border-radius: var(--lf-radius);
+	background: var(--lf-card);
+}
+
+.leagueflow-referee__roster > .leagueflow-referee__section-head {
+	padding: 0.75rem var(--lf-card-pad);
+	border-bottom: 1px solid var(--lf-border);
+	background: var(--lf-muted);
+}
+
+.leagueflow-referee__roster h3 a {
+	color: inherit;
+	text-decoration: none;
+}
+
+.leagueflow-referee__table {
+	width: 100%;
+	margin: 0;
+	border-collapse: collapse;
+	text-align: left;
+}
+
+.leagueflow-referee__table th,
+.leagueflow-referee__table td {
+	padding: 0.6rem var(--lf-card-pad);
+	border-bottom: 1px solid var(--lf-border);
+	vertical-align: middle;
+}
+
+.leagueflow-referee__table tbody tr:last-child > * {
+	border-bottom: 0;
+}
+
+.leagueflow-referee__table thead th {
+	color: var(--lf-muted-foreground);
+	font-size: 0.72rem;
+	letter-spacing: var(--lf-label-tracking);
+	text-transform: var(--lf-label-transform);
+}
+
+.leagueflow-referee__table tbody th {
+	font-weight: 600;
+}
+
+.leagueflow-referee__table .is-number {
+	width: 2.5rem;
+	color: var(--lf-muted-foreground);
+	font-variant-numeric: tabular-nums;
+}
+
+.leagueflow-referee__tag,
+.leagueflow-referee__waiver {
+	display: inline-block;
+	margin-left: 0.4rem;
+	padding: 0.05rem 0.45rem;
+	border-radius: var(--lf-radius-pill);
+	background: var(--lf-muted);
+	font-size: 0.7rem;
+	font-weight: 700;
+	text-transform: uppercase;
+	vertical-align: 0.1em;
+}
+
+.leagueflow-referee__waiver {
+	margin-left: 0;
+}
+
+.leagueflow-referee__tag.is-conflict,
+.leagueflow-referee__waiver.is-missing {
+	background: var(--lf-danger);
+	color: var(--lf-danger-foreground);
+}
+
+.leagueflow-referee__waiver.is-ok {
+	background: var(--lf-success);
+	color: var(--lf-success-foreground);
+}
+
+.leagueflow-referee__empty {
+	display: grid;
+	justify-items: start;
+	gap: 0.75rem;
+	padding: 1.5rem;
+	border: 1px solid var(--lf-border);
+	border-radius: var(--lf-radius);
+	background: var(--lf-card);
+}
+
+.leagueflow-referee__empty p {
+	margin: 0;
+}
+
+@media (max-width: 860px) {
+	.leagueflow-referee__layout {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	/* On phones the score form comes first: it is what the referee came for. */
+	.leagueflow-referee__score {
+		position: static;
+		order: -1;
+	}
+}
+
+@media (max-width: 520px) {
+	.leagueflow-referee__table th,
+	.leagueflow-referee__table td {
+		padding-inline: 0.65rem;
+	}
+
+	.leagueflow-referee__field {
+		flex: 1 1 calc(50% - 0.5rem);
+		min-width: 0;
+	}
+
+	.leagueflow-referee__search .leagueflow-referee__button {
+		flex: 1 1 100%;
 	}
 }

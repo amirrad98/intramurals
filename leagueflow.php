@@ -2,8 +2,8 @@
 /**
  * Plugin Name: LeagueFlow
  * Plugin URI: https://github.com/amirrad98/intramurals
- * Description: Native WordPress soccer league management for teams, players, fixtures, standings, and knockout brackets.
- * Version: 1.0.3
+ * Description: Native WordPress multi-sport league management for teams, players, fixtures, standings, and knockout brackets.
+ * Version: 1.2.0
  * Update URI: https://github.com/amirrad98/intramurals
  * Requires at least: 6.5
  * Requires PHP: 8.1
@@ -17,7 +17,7 @@
 defined( 'ABSPATH' ) || exit;
 
 if ( ! defined( 'LEAGUEFLOW_VERSION' ) ) {
-	define( 'LEAGUEFLOW_VERSION', '1.0.3' );
+	define( 'LEAGUEFLOW_VERSION', '1.2.0' );
 }
 
 if ( ! defined( 'LEAGUEFLOW_FILE' ) ) {
@@ -41,8 +41,11 @@ $leagueflow_files = array(
 	'includes/class-availability.php',
 	'includes/class-fixture-generator.php',
 	'includes/class-match-status.php',
+	'includes/class-result-service.php',
 	'includes/class-plugin.php',
 	'includes/class-activator.php',
+	'includes/class-registration-consent.php',
+	'includes/class-referee.php',
 	'includes/class-settings.php',
 	'includes/class-post-types.php',
 	'includes/class-taxonomies.php',
@@ -51,12 +54,19 @@ $leagueflow_files = array(
 	'includes/class-knockout-service.php',
 	'includes/class-renderer.php',
 	'includes/class-seeder.php',
+	'includes/class-join-request-service.php',
+	'includes/class-admin-requests.php',
+	'includes/class-admin-results.php',
+	'includes/class-admin-setup.php',
 	'includes/class-admin.php',
+	'includes/class-admin-guide.php',
 	'includes/class-portal.php',
 	'includes/class-rest-controller.php',
+	'includes/class-public-matches-api.php',
 	'includes/class-shortcodes.php',
 	'includes/class-blocks.php',
 	'includes/class-template-loader.php',
+	'includes/class-cli.php',
 );
 
 foreach ( $leagueflow_files as $leagueflow_file ) {

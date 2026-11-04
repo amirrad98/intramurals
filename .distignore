@@ -1,0 +1,13 @@
+# Keep Zoer's development package aligned with scripts/build.py's runtime files.
+/docs/
+/releases/
+/scripts/
+/tests/
+__pycache__/
+coverage/
+vendor/
+build/
+
+# Node manifests are development-test tooling, not WordPress runtime files.
+/package.json
+/package-lock.json

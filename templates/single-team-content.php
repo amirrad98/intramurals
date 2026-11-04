@@ -50,17 +50,7 @@ defined( 'ABSPATH' ) || exit;
 		<?php else : ?>
 			<div class="leagueflow-match-stack">
 				<?php foreach ( $recent_matches as $match ) : ?>
-					<article class="leagueflow-match-row">
-						<header class="leagueflow-match-row__header">
-							<strong><?php echo esc_html( $match['status_label'] ); ?></strong>
-							<?php if ( ! empty( $match['datetime'] ) ) : ?><time datetime="<?php echo esc_attr( $match['datetime_raw'] ); ?>"><?php echo esc_html( $match['datetime'] ); ?></time><?php endif; ?>
-						</header>
-						<?php
-						// Inline children stay on one line: block-template rendering
-						// autop-converts stray newlines into <br> grid items.
-						?>
-						<div class="leagueflow-match-row__teams"><span><?php echo esc_html( $match['home_team'] ); ?></span><span class="leagueflow-match-row__score"><?php echo ! empty( $match['scoreline'] ) ? esc_html( $match['scoreline'] ) : esc_html__( 'vs', 'leagueflow' ); ?></span><span><?php echo esc_html( $match['away_team'] ); ?></span></div>
-					</article>
+					<?php echo \LeagueFlow\render_match_card( $match ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped by render_match_card(). ?>
 				<?php endforeach; ?>
 			</div>
 		<?php endif; ?>

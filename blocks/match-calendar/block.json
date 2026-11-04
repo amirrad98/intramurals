@@ -51,9 +51,57 @@
 		"list_more": {
 			"type": "number",
 			"default": 15
+		},
+		"event_type": {
+			"type": "string",
+			"default": ""
+		},
+		"include_knockout": {
+			"type": "string",
+			"default": ""
+		},
+		"limit": {
+			"type": "number",
+			"default": 100
+		},
+		"show_cost": {
+			"type": "boolean",
+			"default": true
+		},
+		"event_sort_order": {
+			"type": "string",
+			"default": "asc",
+			"enum": [
+				"asc",
+				"desc"
+			]
+		},
+		"month_display": {
+			"type": "string",
+			"default": "sidebar",
+			"enum": [
+				"sidebar",
+				"popover",
+				"dropdown"
+			]
+		},
+		"sidebar_position": {
+			"type": "string",
+			"default": "right",
+			"enum": [
+				"left",
+				"right"
+			]
 		}
 	},
 	"editorScript": "leagueflow-blocks",
 	"editorStyle": "leagueflow-editor",
-	"style": "leagueflow-frontend"
+	"style": "leagueflow-frontend",
+	"supports": {
+		"html": false,
+		"align": [
+			"wide",
+			"full"
+		]
+	}
 }

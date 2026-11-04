@@ -77,6 +77,31 @@ class Field_Availability_Manager {
 	}
 
 	/**
+	 * Saved match duration, with a legacy availability fallback.
+	 *
+	 * Persisting duration on the fixture means later edits to an availability
+	 * rule do not resize an already scheduled match. Older fixtures can still
+	 * use the rule they were scheduled from, or the historical one-hour default.
+	 *
+	 * @param int $match_id Match post ID.
+	 * @return int Duration in minutes.
+	 */
+	public static function get_match_duration_minutes( $match_id ) {
+		$stored = get_post_meta( $match_id, 'lf_duration_minutes', true );
+		if ( Match_Status::is_valid_score( $stored ) && (int) $stored > 0 && (int) $stored <= (int) ( PHP_INT_MAX / MINUTE_IN_SECONDS ) ) {
+			return (int) $stored;
+		}
+		$id = (string) get_post_meta( $match_id, self::META_AVAILABILITY_ID, true );
+		if ( '' !== $id ) {
+			$availability = ( new self() )->get_availability( $id );
+			if ( $availability ) {
+				return max( 1, (int) $availability['slot_minutes'] );
+			}
+		}
+		return 60;
+	}
+
+	/**
 	 * Load scheduling constraints from plugin settings for the current run.
 	 *
 	 * All constraints default to off (0) so a site that never configures them
@@ -336,6 +361,7 @@ class Field_Availability_Manager {
 	public function get_available_slots( $args = array() ) {
 		$this->load_scheduling_constraints();
 		$args      = $this->normalize_schedule_args( $args );
+		if ( ! empty( $args['_invalid_scope'] ) ) { return array(); }
 		$slots     = $this->build_slots( $args );
 		$conflicts = $this->get_conflicts( $args['date_from'], $args['date_to'], array() );
 		$open      = array();
@@ -358,7 +384,7 @@ class Field_Availability_Manager {
 	 */
 	public function schedule_match( $match_id, $args = array() ) {
 		$args              = (array) $args;
-		$args['match_ids'] = array( absint( $match_id ) );
+		$args['match_ids'] = array( $match_id );
 
 		return $this->schedule_matches( $args );
 	}
@@ -370,8 +396,31 @@ class Field_Availability_Manager {
 	 * @return array<string, mixed>
 	 */
 	public function schedule_matches( $args = array() ) {
+		if ( ! current_user_can( 'leagueflow_manage_schedule' ) ) {
+			return array( 'scheduled' => 0, 'skipped' => 0, 'failed' => 1, 'updated' => array(), 'messages' => array( __( 'You do not have permission to schedule these matches.', 'leagueflow' ) ) );
+		}
+		// Sports share venues. One site-wide scheduling lock prevents two
+		// simultaneous runs from both reserving the same apparently free slot.
+		$lock = db_lock_name( 'schedule', 'site' );
+		if ( ! acquire_db_lock( $lock, 3 ) ) {
+			return array( 'scheduled' => 0, 'skipped' => 0, 'failed' => 1, 'updated' => array(), 'messages' => array( __( 'Another scheduling run is in progress, or its lock is unavailable. No matches were changed; try again.', 'leagueflow' ) ) );
+		}
+		try {
+			return $this->schedule_matches_locked( $args );
+		} finally {
+			release_db_lock( $lock );
+		}
+	}
+
+	/** Schedule only while holding the site-wide reservation lock. */
+	protected function schedule_matches_locked( $args ) {
 		$args = $this->normalize_schedule_args( $args );
 		$results = array( 'scheduled' => 0, 'skipped' => 0, 'failed' => 0, 'updated' => array(), 'messages' => array() );
+		if ( ! empty( $args['_invalid_scope'] ) ) {
+			$results['failed'] = 1;
+			$results['messages'][] = __( 'Scheduling IDs must be valid whole-number identifiers. No matches were changed.', 'leagueflow' );
+			return $results;
+		}
 		if ( ! current_user_can( 'leagueflow_manage_schedule' ) || ( $args['overwrite'] && ! current_user_can( 'leagueflow_overwrite_schedule' ) ) ) {
 			$results['failed'] = 1;
 			$results['messages'][] = __( 'You do not have permission to schedule these matches.', 'leagueflow' );
@@ -406,15 +455,12 @@ class Field_Availability_Manager {
 			return $results;
 		}
 
-		$match_ids = array_map(
-			static function( $post ) {
-				return (int) $post->ID;
-			},
-			$matches
-		);
-
-		$conflicts = $this->get_conflicts( $args['date_from'], $args['date_to'], $match_ids );
+		// A selected fixture keeps occupying its old slot until it actually
+		// moves. A skipped, locked or unschedulable selection must not make its
+		// existing booking appear free to the other selected fixtures.
+		$conflicts = $this->get_conflicts( $args['date_from'], $args['date_to'], array() );
 		$reserved  = array();
+		$moved     = array();
 
 		// Place the hardest-to-fit fixtures first so scarce slots are not spent
 		// on matches that have many alternatives (most-constrained-first).
@@ -423,11 +469,13 @@ class Field_Availability_Manager {
 		}
 
 		foreach ( $matches as $match ) {
-			$decision = $this->schedule_one_match( (int) $match->ID, $args, $slots, $conflicts, $reserved );
+			$current_conflicts = $this->without_match_conflicts( $conflicts, array_merge( $moved, array( (int) $match->ID ) ) );
+			$decision = $this->schedule_one_match( (int) $match->ID, $args, $slots, $current_conflicts, $reserved );
 
 			if ( ! empty( $decision['scheduled'] ) ) {
 				$results['scheduled']++;
 				$results['updated'][] = (int) $match->ID;
+				$moved[] = (int) $match->ID;
 				continue;
 			}
 
@@ -458,8 +506,27 @@ class Field_Availability_Manager {
 	 * @return array<string, mixed>
 	 */
 	protected function schedule_one_match( $match_id, $args, $slots, $conflicts, &$reserved ) {
+		// Never wait for an editor's result lock while holding the site-wide
+		// scheduler lock. The editor may itself be requesting auto scheduling.
+		$lock = db_lock_name( 'result', (string) $match_id );
+		if ( ! acquire_db_lock( $lock, 0 ) ) {
+			return array( 'failed' => true, 'message' => __( 'A selected match is being updated. Its existing schedule was preserved; retry after the update finishes.', 'leagueflow' ) );
+		}
+		try {
+			clean_post_cache( $match_id );
+			return $this->schedule_one_match_locked( $match_id, $args, $slots, $conflicts, $reserved );
+		} finally {
+			release_db_lock( $lock );
+		}
+	}
+
+	/** Schedule a refreshed target while holding its shared result lock. */
+	protected function schedule_one_match_locked( $match_id, $args, $slots, $conflicts, &$reserved ) {
 		if ( ! $this->can_schedule_target( $match_id, $args ) ) {
 			return array( 'failed' => true, 'message' => __( 'Match scheduling permission was denied.', 'leagueflow' ) );
+		}
+		if ( in_array( get_post_meta( $match_id, 'lf_status', true ), array( 'live', 'finished', 'cancelled' ), true ) ) {
+			return array( 'failed' => true, 'message' => __( 'Live, finished and cancelled matches cannot be rescheduled by the assistant.', 'leagueflow' ) );
 		}
 
 		$datetime = (string) get_post_meta( $match_id, 'lf_match_datetime', true );
@@ -493,32 +560,85 @@ class Field_Availability_Manager {
 		if ( ! $this->can_schedule_target( $match_id, $args ) ) {
 			return array( 'failed' => true, 'message' => __( 'Match scheduling permission was denied.', 'leagueflow' ) );
 		}
-		$new_datetime = $datetime;
-		$new_venue    = $venue;
-
-		if ( $needs_datetime ) {
-			$new_datetime = (string) $slot['start_datetime'];
-			update_post_meta( $match_id, 'lf_match_datetime', $new_datetime );
+		if ( in_array( get_post_meta( $match_id, 'lf_status', true ), array( 'live', 'finished', 'cancelled' ), true ) ) {
+			return array( 'failed' => true, 'message' => __( 'The match has started or closed since scheduling began. Its schedule was preserved.', 'leagueflow' ) );
 		}
-
-		if ( $needs_venue ) {
-			$new_venue = (string) $slot['venue'];
-			update_post_meta( $match_id, 'lf_venue', $new_venue );
+		$new_datetime = $needs_datetime ? (string) $slot['start_datetime'] : $datetime;
+		$values = array(
+			self::META_AVAILABILITY_ID => (string) $slot['availability_id'],
+			self::META_SCHEDULE_SOURCE => 'auto',
+			self::META_SCHEDULED_AT => current_time( 'mysql' ),
+			'lf_duration_minutes' => max( 1, (int) round( ( $slot['end_ts'] - $slot['start_ts'] ) / MINUTE_IN_SECONDS ) ),
+		);
+		if ( $needs_datetime ) { $values['lf_match_datetime'] = $new_datetime; }
+		if ( $needs_venue ) { $values['lf_venue'] = (string) $slot['venue']; }
+		$saved = $this->persist_schedule( $match_id, $args, $values, $new_datetime );
+		if ( is_wp_error( $saved ) ) { return array( 'failed' => true, 'message' => $saved->get_error_message() ); }
+		if ( ! $saved ) {
+			return array( 'failed' => true, 'message' => __( 'The complete schedule could not be saved. The match’s previous schedule was preserved; reload and try again.', 'leagueflow' ) );
 		}
-
-		update_post_meta( $match_id, self::META_AVAILABILITY_ID, (string) $slot['availability_id'] );
-		update_post_meta( $match_id, self::META_SCHEDULE_SOURCE, 'auto' );
-		update_post_meta( $match_id, self::META_SCHEDULED_AT, current_time( 'mysql' ) );
-
+		// Only a fully persisted fixture may claim a slot or release its old one.
 		$this->reserve_slot_for_match( $slot, $match_id, $reserved );
-
-		if ( empty( $args['suppress_title_sync'] ) && $this->can_schedule_target( $match_id, $args ) ) {
-			$this->sync_match_title_from_meta( $match_id, $new_datetime );
-		}
 
 		return array(
 			'scheduled' => true,
 		);
+	}
+
+	/**
+	 * Save all scheduling fields and the generated title as one checked update.
+	 *
+	 * @return bool|\WP_Error
+	 */
+	protected function persist_schedule( $match_id, $args, $values, $datetime ) {
+		global $wpdb;
+		foreach ( array( $wpdb->posts, $wpdb->postmeta ) as $table_name ) {
+			$table = $wpdb->get_row( $wpdb->prepare( 'SHOW TABLE STATUS WHERE Name = %s', $table_name ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+			if ( ! $table || 'innodb' !== strtolower( (string) $table->Engine ) ) { return false; }
+		}
+		// Releasing the scheduler lock before an enclosing transaction commits
+		// would let another run reserve the same invisible booking. Refuse that
+		// call without committing or rolling back any of the caller's work.
+		$savepoint = 'lf_schedule_probe_' . str_replace( '-', '', wp_generate_uuid4() );
+		$previous_errors = $wpdb->suppress_errors( true );
+		$probe = $wpdb->query( 'SAVEPOINT ' . $savepoint ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$nested = false !== $wpdb->query( 'RELEASE SAVEPOINT ' . $savepoint ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$probe_error = $wpdb->last_error;
+		$wpdb->suppress_errors( $previous_errors );
+		if ( false === $probe || ( ! $nested && ! preg_match( '/SAVEPOINT .+ does not exist/i', $probe_error ) ) ) { return false; }
+		if ( $nested ) {
+			return new \WP_Error( 'leagueflow_schedule_transaction', __( 'Finish the current database transaction by committing it or rolling it back, then run scheduling again. This match was not changed.', 'leagueflow' ) );
+		}
+		if ( false === $wpdb->query( 'START TRANSACTION' ) ) { return false; } // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+		$committed = false;
+		try {
+			$expected = $values;
+			foreach ( array( 'lf_match_datetime', 'lf_venue' ) as $key ) {
+				if ( ! array_key_exists( $key, $expected ) ) { $expected[ $key ] = get_post_meta( $match_id, $key, true ); }
+			}
+			foreach ( $values as $key => $value ) {
+				update_post_meta( $match_id, $key, wp_slash( $value ) );
+				if ( (string) get_post_meta( $match_id, $key, true ) !== (string) $value ) { return false; }
+			}
+			if ( ! $this->can_schedule_target( $match_id, $args ) ) { return false; }
+			if ( empty( $args['suppress_title_sync'] ) && ! $this->sync_match_title_from_meta( $match_id, $datetime ) ) { return false; }
+			if ( ! $this->can_schedule_target( $match_id, $args ) || in_array( get_post_meta( $match_id, 'lf_status', true ), array( 'live', 'finished', 'cancelled' ), true ) ) { return false; }
+			// Title and permission hooks may change a previously checked field.
+			// Reserve only the date, venue and duration actually selected above.
+			foreach ( $expected as $key => $value ) {
+				if ( (string) get_post_meta( $match_id, $key, true ) !== (string) $value ) { return false; }
+			}
+			if ( false === $wpdb->query( 'COMMIT' ) ) { return false; } // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+			$committed = true;
+			return true;
+		} catch ( \Throwable $error ) {
+			return false;
+		} finally {
+			if ( ! $committed ) {
+				$wpdb->query( 'ROLLBACK' ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+				clean_post_cache( $match_id );
+			}
+		}
 	}
 
 	/** Recheck global and object-specific authority at the mutation boundary. */
@@ -526,6 +646,19 @@ class Field_Availability_Manager {
 		return current_user_can( 'leagueflow_manage_schedule' ) && 'lf_match' === get_post_type( $match_id )
 			&& current_user_can( 'edit_post', $match_id )
 			&& ( empty( $args['overwrite'] ) || current_user_can( 'leagueflow_overwrite_schedule' ) );
+	}
+
+	/** Remove only the fixture being moved and old slots already replaced. */
+	protected function without_match_conflicts( $conflicts, $match_ids ) {
+		$excluded = array_fill_keys( array_map( 'absint', $match_ids ), true );
+		foreach ( $conflicts as $bucket => $groups ) {
+			foreach ( $groups as $key => $entries ) {
+				$conflicts[ $bucket ][ $key ] = array_values( array_filter( $entries, static function( $entry ) use ( $excluded ) {
+					return ! isset( $excluded[ (int) $entry['post_id'] ] );
+				} ) );
+			}
+		}
+		return $conflicts;
 	}
 
 	/**
@@ -680,13 +813,14 @@ class Field_Availability_Manager {
 			$team_ids    = $this->get_match_team_ids( (int) $match->ID );
 			$match_sport = $this->get_match_sport_slug( (int) $match->ID );
 			$open        = 0;
+			$current_conflicts = $this->without_match_conflicts( $conflicts, array( (int) $match->ID ) );
 
 			foreach ( $slots as $slot ) {
 				if ( ! $this->slot_matches_sport( $slot, $match_sport ) ) {
 					continue;
 				}
 
-				if ( $this->is_slot_open( $slot, $team_ids, $conflicts, $no_reservations ) ) {
+				if ( $this->is_slot_open( $slot, $team_ids, $current_conflicts, $no_reservations ) ) {
 					$open++;
 				}
 			}
@@ -1023,8 +1157,9 @@ class Field_Availability_Manager {
 			'pairs'  => array(),
 		);
 		$exclude_match_ids = array_filter( array_map( 'absint', (array) $exclude_match_ids ) );
-		$query_start       = $this->date_shift( $date_from, -1 ) . ' 00:00';
-		$query_end         = $this->date_shift( $date_to, 1 ) . ' 23:59';
+		$padding           = max( 1, $this->scheduling_constraints['min_rest_days'], $this->scheduling_constraints['min_days_between_rematch'] );
+		$query_start       = $this->date_shift( $date_from, -$padding ) . ' 00:00';
+		$query_end         = $this->date_shift( $date_to, $padding ) . ' 23:59:59';
 
 		$matches = get_posts(
 			array(
@@ -1061,7 +1196,7 @@ class Field_Availability_Manager {
 			$entry = array(
 				'post_id'  => (int) $match_id,
 				'start_ts' => $start_ts,
-				'end_ts'   => $start_ts + HOUR_IN_SECONDS,
+				'end_ts'   => $start_ts + self::get_match_duration_minutes( $match_id ) * MINUTE_IN_SECONDS,
 			);
 
 			if ( '' !== trim( $venue ) ) {
@@ -1090,9 +1225,14 @@ class Field_Availability_Manager {
 				'meta_query'     => array(
 					array(
 						'key'     => 'lf_event_start_datetime',
-						'value'   => array( $query_start, $query_end ),
-						'compare' => 'BETWEEN',
+						'value'   => $query_end,
+						'compare' => '<=',
 						'type'    => 'CHAR',
+					),
+					array(
+						'relation' => 'OR',
+						array( 'key' => 'lf_event_end_datetime', 'value' => $query_start, 'compare' => '>=', 'type' => 'CHAR' ),
+						array( 'key' => 'lf_event_start_datetime', 'value' => $query_start, 'compare' => '>=', 'type' => 'CHAR' ),
 					),
 				),
 			)
@@ -1192,7 +1332,7 @@ class Field_Availability_Manager {
 				function( $match ) use ( $args, $mode ) {
 					$status = sanitize_key( (string) get_post_meta( $match->ID, 'lf_status', true ) );
 
-					if ( in_array( $status, array( 'finished', 'cancelled' ), true ) ) {
+					if ( in_array( $status, array( 'live', 'finished', 'cancelled' ), true ) ) {
 						return false;
 					}
 
@@ -1248,6 +1388,19 @@ class Field_Availability_Manager {
 			)
 		);
 
+		$args['_invalid_scope'] = ! is_array( $args['match_ids'] ) && ! $this->is_schedule_id( $args['match_ids'] );
+		foreach ( (array) $args['match_ids'] as $raw_id ) {
+			if ( ! $this->is_schedule_id( $raw_id ) ) { $args['_invalid_scope'] = true; }
+		}
+		foreach ( array( 'competition_id', 'season_id' ) as $key ) {
+			if ( '' !== $args[ $key ] && ! $this->is_schedule_id( $args[ $key ], true ) ) { $args['_invalid_scope'] = true; }
+		}
+		if ( $args['_invalid_scope'] ) {
+			$args['match_ids'] = array();
+			$args['competition_id'] = 0;
+			$args['season_id'] = 0;
+		}
+
 		$date = $this->sanitize_date( (string) $args['date'] );
 
 		if ( $date ) {
@@ -1291,6 +1444,15 @@ class Field_Availability_Manager {
 		}
 
 		return $args;
+	}
+
+	/** Reject coercible IDs before they can select an unintended fixture or scope. */
+	protected function is_schedule_id( $value, $allow_zero = false ) {
+		if ( ! is_int( $value ) && ! is_string( $value ) ) { return false; }
+		$value = (string) $value;
+		if ( ! preg_match( '/^(0|[1-9][0-9]*)$/D', $value ) || ( ! $allow_zero && '0' === $value ) ) { return false; }
+		$maximum = (string) PHP_INT_MAX;
+		return strlen( $value ) < strlen( $maximum ) || ( strlen( $value ) === strlen( $maximum ) && strcmp( $value, $maximum ) <= 0 );
 	}
 
 	/**
@@ -1446,19 +1608,16 @@ class Field_Availability_Manager {
 	 *
 	 * @param int    $match_id Match ID.
 	 * @param string $datetime Date/time.
-	 * @return void
+	 * @return bool
 	 */
 	protected function sync_match_title_from_meta( $match_id, $datetime ) {
-		wp_update_post(
-			array(
-				'ID'         => absint( $match_id ),
-				'post_title' => build_match_title(
-					absint( get_post_meta( $match_id, 'lf_home_team_id', true ) ),
-					absint( get_post_meta( $match_id, 'lf_away_team_id', true ) ),
-					$datetime
-				),
-			)
-		);
+		$title = build_match_title( (int) get_post_meta( $match_id, 'lf_home_team_id', true ), (int) get_post_meta( $match_id, 'lf_away_team_id', true ), $datetime );
+		// Do not replay an editor form during an internal title update.
+		$submitted = $_POST;
+		$_POST = array();
+		try { $saved = wp_update_post( array( 'ID' => (int) $match_id, 'post_title' => $title ), true, false ); }
+		finally { $_POST = $submitted; }
+		return ! is_wp_error( $saved ) && $saved && $title === get_post_field( 'post_title', $match_id );
 	}
 
 	/**

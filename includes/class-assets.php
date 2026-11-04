@@ -31,35 +31,48 @@ class Assets {
 	 * @return void
 	 */
 	public function register_assets() {
-		$portal_script_path   = LEAGUEFLOW_PATH . 'assets/js/portal.js';
-		$calendar_script_path = LEAGUEFLOW_PATH . 'assets/js/calendar.js';
+		// Semantic tokens load first; every LeagueFlow stylesheet reads them.
+		wp_register_style(
+			'leagueflow-tokens',
+			LEAGUEFLOW_URL . 'assets/css/design-tokens.css',
+			array(),
+			$this->asset_version( 'assets/css/design-tokens.css' )
+		);
 
 		wp_register_style(
 			'leagueflow-frontend',
 			LEAGUEFLOW_URL . 'assets/css/frontend.css',
-			array(),
-			(string) filemtime( LEAGUEFLOW_PATH . 'assets/css/frontend.css' )
+			array( 'leagueflow-tokens' ),
+			$this->asset_version( 'assets/css/frontend.css' )
 		);
 
 		wp_register_style(
 			'leagueflow-admin',
 			LEAGUEFLOW_URL . 'assets/css/admin.css',
 			array(),
-			LEAGUEFLOW_VERSION
+			$this->asset_version( 'assets/css/admin.css' )
+		);
+
+		wp_register_script(
+			'leagueflow-admin-ui',
+			LEAGUEFLOW_URL . 'assets/js/admin.js',
+			array(),
+			$this->asset_version( 'assets/js/admin.js' ),
+			true
 		);
 
 		wp_register_style(
 			'leagueflow-editor',
 			LEAGUEFLOW_URL . 'assets/css/editor.css',
-			array( 'wp-edit-blocks' ),
-			LEAGUEFLOW_VERSION
+			array( 'wp-edit-blocks', 'leagueflow-tokens' ),
+			$this->asset_version( 'assets/css/editor.css' )
 		);
 
 		wp_register_script(
 			'leagueflow-blocks',
 			LEAGUEFLOW_URL . 'assets/js/blocks.js',
-			array( 'wp-blocks', 'wp-components', 'wp-element', 'wp-i18n', 'wp-block-editor', 'wp-server-side-render' ),
-			LEAGUEFLOW_VERSION,
+			array( 'wp-blocks', 'wp-components', 'wp-element', 'wp-i18n', 'wp-block-editor', 'wp-server-side-render', 'leagueflow-calendar' ),
+			$this->asset_version( 'assets/js/blocks.js' ),
 			true
 		);
 
@@ -67,7 +80,7 @@ class Assets {
 			'leagueflow-portal',
 			LEAGUEFLOW_URL . 'assets/js/portal.js',
 			array(),
-			file_exists( $portal_script_path ) ? (string) filemtime( $portal_script_path ) : LEAGUEFLOW_VERSION,
+			$this->asset_version( 'assets/js/portal.js' ),
 			true
 		);
 
@@ -75,9 +88,26 @@ class Assets {
 			'leagueflow-calendar',
 			LEAGUEFLOW_URL . 'assets/js/calendar.js',
 			array(),
-			file_exists( $calendar_script_path ) ? (string) filemtime( $calendar_script_path ) : LEAGUEFLOW_VERSION,
+			$this->asset_version( 'assets/js/calendar.js' ),
 			true
 		);
+	}
+
+	/**
+	 * Cache key for every plugin asset: plugin version plus a short
+	 * content hash. Packages stamp every file with the same date, so a
+	 * modification time only changes if the installer rewrites it; the hash
+	 * changes exactly when the file's bytes change, so a development update with
+	 * an unchanged plugin version is still fetched fresh after a reload.
+	 *
+	 * @param string $relative Path relative to the plugin directory.
+	 * @return string
+	 */
+	private function asset_version( $relative ) {
+		$path = LEAGUEFLOW_PATH . $relative;
+		$hash = is_readable( $path ) ? md5_file( $path ) : false;
+
+		return $hash ? LEAGUEFLOW_VERSION . '-' . substr( $hash, 0, 12 ) : LEAGUEFLOW_VERSION;
 	}
 
 	/**
@@ -101,12 +131,22 @@ class Assets {
 			'edit-lf_match',
 			'lf_calendar_event',
 			'edit-lf_calendar_event',
+			'lf_join_request',
+			'edit-lf_join_request',
 			'toplevel_page_leagueflow',
 			'leagueflow_page_leagueflow-sports',
 			'leagueflow_page_leagueflow-fields',
+			'leagueflow_page_leagueflow-fixtures',
+			'leagueflow_page_leagueflow-placements',
+			'leagueflow_page_leagueflow-requests',
+			'leagueflow_page_leagueflow-results',
+			'leagueflow_page_leagueflow-referee',
+			'leagueflow_page_leagueflow-setup',
+			'leagueflow_page_leagueflow-utilities',
 			'leagueflow_page_leagueflow-standings',
 			'leagueflow_page_leagueflow-brackets',
 			'leagueflow_page_leagueflow-settings',
+			'leagueflow_page_leagueflow-guide',
 			'edit-lf_league_level',
 			'edit-lf_competition',
 			'edit-lf_season',
@@ -120,6 +160,17 @@ class Assets {
 			false !== strpos( $screen->id, 'leagueflow-sport-' )
 		) {
 			wp_enqueue_style( 'leagueflow-admin' );
+			wp_enqueue_script( 'leagueflow-admin-ui' );
+		}
+
+		// Referees without staff access use the desk inside wp-admin too.
+		if ( 'toplevel_page_leagueflow-referee' === $screen->id ) {
+			wp_enqueue_style( 'leagueflow-frontend' );
+		}
+
+		// The Calendar Event poster field uses the media library.
+		if ( 'lf_calendar_event' === $screen->id ) {
+			wp_enqueue_media();
 		}
 	}
 
@@ -165,7 +216,10 @@ class Assets {
 		);
 
 		if ( 'lf_sport' === $taxonomy ) {
-			$args['slug'] = get_option( Sports_Manager::ENABLED_SPORTS_OPTION, array( 'soccer' ) );
+			$args['slug'] = ( new Sports_Manager() )->get_enabled_sport_slugs();
+			if ( ! $args['slug'] ) {
+				return array();
+			}
 		}
 
 		$terms = 'lf_league_level' === $taxonomy ? get_league_level_terms() : get_terms( $args );
@@ -199,6 +253,7 @@ class Assets {
 			array(
 				'post_type'      => $post_type,
 				'post_status'    => array( 'publish', 'draft', 'pending', 'future', 'private' ),
+				'perm'           => 'readable',
 				'posts_per_page' => 100,
 				'orderby'        => 'title',
 				'order'          => 'ASC',
@@ -213,7 +268,7 @@ class Assets {
 					'sport' => get_post_primary_term_slug( $post->ID, 'lf_sport' ),
 				);
 			},
-			$posts
+			array_values( array_filter( $posts, static function ( $post ) { return can_view_league_post( $post ); } ) )
 		);
 	}
 }

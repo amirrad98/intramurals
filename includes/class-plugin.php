@@ -64,14 +64,20 @@ class Plugin {
 		$fields       = new Field_Availability_Manager();
 		$fixtures     = new Fixture_Generator( $fields );
 		$match_status = new Match_Status();
+		$results      = new Result_Service();
 		$availability = new Availability();
+		$consent      = new Registration_Consent();
+		$guide        = new Admin_Guide();
 
 		$this->renderer = new Renderer( $standings, $knockout, $sports );
+		$referees       = new Referee( $this->renderer, $results );
 
 		$seeder    = new Seeder();
-		$admin     = new Admin( $standings, $knockout, $this->renderer, $seeder, $sports, $exporter, $fields, $fixtures );
+		$requests  = new Join_Request_Service();
+		$admin     = new Admin( $standings, $knockout, $this->renderer, $seeder, $sports, $exporter, $fields, $fixtures, $requests, $results );
 		$portal    = new Portal( $this->renderer );
 		$rest      = new Rest_Controller( $standings, $knockout, $this->renderer );
+		$public_matches = new Public_Matches_API();
 		$shortcode = new Shortcodes( $this->renderer );
 		$blocks    = new Blocks( $this->renderer );
 		$templates = new Template_Loader( $this->renderer );
@@ -86,13 +92,20 @@ class Plugin {
 			$knockout,
 			$fields,
 			$match_status,
+			$results,
 			$availability,
+			$consent,
+			$referees,
+			$guide,
+			$requests,
 			$admin,
 			$portal,
 			$rest,
+			$public_matches,
 			$shortcode,
 			$blocks,
 			$templates,
+			new CLI( $results ),
 		);
 	}
 

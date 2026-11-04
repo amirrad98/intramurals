@@ -37,6 +37,35 @@ class Match_Status {
 	 */
 	protected static $previous = array();
 
+	/** Result writers defer notifications until all result fields commit. */
+	protected static $deferred = array();
+
+	/** Start collecting this match's lifecycle notifications inside a transaction. */
+	public static function defer_transitions( $match_id ) {
+		self::$deferred[ (int) $match_id ] = null;
+	}
+
+	/** Publish one committed transition, or discard a rolled-back transition. */
+	public static function flush_transitions( $match_id, $committed = true ) {
+		$match_id = (int) $match_id;
+		$pending = self::$deferred[ $match_id ] ?? null;
+		unset( self::$deferred[ $match_id ], self::$previous[ $match_id ] );
+		if ( $committed && is_array( $pending ) && $pending['old'] !== $pending['new'] ) {
+			do_action( 'leagueflow_match_status_changed', $match_id, $pending['new'], $pending['old'] );
+		}
+	}
+
+	/** Resolve deliberate editor score entry without overriding an active lifecycle. */
+	public static function status_for_score_entry( $status, $home, $away, $outcome = '', $keep_status = false, $finalize = false ) {
+		if ( $finalize ) { return 'finished'; }
+		$status = isset( self::statuses()[ $status ] ) ? $status : 'scheduled';
+		$forfeit = in_array( $outcome, array( 'forfeit_home', 'forfeit_away', 'double_forfeit' ), true );
+		if ( ! $keep_status && 'scheduled' === $status && ( $forfeit || ( self::is_valid_score( $home ) && self::is_valid_score( $away ) ) ) ) {
+			return 'finished';
+		}
+		return $status;
+	}
+
 	/**
 	 * Register hooks.
 	 *
@@ -61,6 +90,42 @@ class Match_Status {
 			'postponed' => __( 'Postponed', 'leagueflow' ),
 			'cancelled' => __( 'Cancelled', 'leagueflow' ),
 		);
+	}
+
+	/** Human-readable result type; a forfeit is not a played score. */
+	public static function outcome_label( $outcome ) {
+		$labels = array(
+			'forfeit_home'   => __( 'Home team forfeited', 'leagueflow' ),
+			'forfeit_away'   => __( 'Away team forfeited', 'leagueflow' ),
+			'double_forfeit' => __( 'Double forfeit', 'leagueflow' ),
+		);
+		return is_string( $outcome ) && isset( $labels[ $outcome ] ) ? $labels[ $outcome ] : '';
+	}
+
+	/**
+	 * Whether a score is a non-negative whole number representable by PHP.
+	 *
+	 * A blank score is not 0. Reject decimals, negative values, booleans and
+	 * malformed imported metadata before a result can affect a table or bracket.
+	 * Leading zeroes remain valid, as they are in the admin score fields.
+	 *
+	 * @param mixed $score Score value.
+	 * @return bool
+	 */
+	public static function is_valid_score( $score ) {
+		if ( ! is_int( $score ) && ! is_string( $score ) ) {
+			return false;
+		}
+
+		$value = (string) $score;
+		if ( ! preg_match( '/^[0-9]+$/D', $value ) ) {
+			return false;
+		}
+
+		$value = ltrim( $value, '0' );
+		$max   = (string) PHP_INT_MAX;
+
+		return strlen( $value ) < strlen( $max ) || ( strlen( $value ) === strlen( $max ) && strcmp( $value, $max ) <= 0 );
 	}
 
 	/**
@@ -144,6 +209,11 @@ class Match_Status {
 	 */
 	protected function fire_transition( $match_id, $new, $old ) {
 		update_post_meta( $match_id, 'lf_status_changed_at', current_time( 'mysql' ) );
+		if ( array_key_exists( $match_id, self::$deferred ) ) {
+			$first = self::$deferred[ $match_id ];
+			self::$deferred[ $match_id ] = array( 'old' => is_array( $first ) ? $first['old'] : $old, 'new' => $new );
+			return;
+		}
 
 		/**
 		 * Fires when a match moves from one lifecycle status to another.

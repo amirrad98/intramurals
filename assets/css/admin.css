@@ -1,12 +1,12 @@
 .leagueflow-admin-page .leagueflow-admin-grid {
 	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+	grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
 	gap: 1rem;
 	margin-top: 1rem;
 }
 
 .leagueflow-admin-page .leagueflow-admin-grid--wide {
-	grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+	grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
 	align-items: start;
 }
 
@@ -35,7 +35,7 @@
 .leagueflow-settings-grid,
 .leagueflow-settings-secondary {
 	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+	grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
 	gap: 12px;
 	align-items: start;
 }
@@ -165,7 +165,7 @@
 .leagueflow-form-table input[type="datetime-local"],
 .leagueflow-form-table input[type="date"],
 .leagueflow-form-table input[type="time"] {
-	min-width: 280px;
+	min-width: min(280px, 100%);
 	max-width: 100%;
 }
 
@@ -175,6 +175,11 @@
 }
 
 .leagueflow-player-memberships-wrap {
+	max-width: 100%;
+	overflow-x: auto;
+}
+
+.leagueflow-table-scroll {
 	max-width: 100%;
 	overflow-x: auto;
 }
@@ -207,6 +212,7 @@
 
 .leagueflow-player-memberships__add {
 	display: flex;
+	flex-wrap: wrap;
 	align-items: center;
 	gap: 10px;
 	margin-top: 12px;
@@ -214,6 +220,16 @@
 
 .leagueflow-player-memberships__add > span {
 	font-weight: 600;
+}
+
+.leagueflow-requests-table td,
+.leagueflow-requests-table th {
+	overflow-wrap: anywhere;
+}
+
+.leagueflow-request-action select {
+	box-sizing: border-box;
+	max-width: 100%;
 }
 
 .leagueflow-field-page .leagueflow-admin-card h2 {
@@ -299,11 +315,12 @@
 
 .leagueflow-admin-sport-standings__grid {
 	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+	grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
 	gap: 1rem;
 }
 
 .leagueflow-admin-sport-standings__panel {
+	min-width: 0;
 	background: #fff;
 	border: 1px solid #ccd0d4;
 }
@@ -334,4 +351,818 @@
 	.leagueflow-settings-panel--routing .form-table tbody {
 		grid-template-columns: 1fr;
 	}
+}
+
+/*
+ * Scroll containers inside tables, grids and cards: width 0 + min-width 100%
+ * removes the wide table's intrinsic width from the parent's sizing, so only
+ * the wrapper scrolls instead of the whole page (Player edit was 784px wide
+ * at 390/320; sport Overviews were 343px wide at 320).
+ */
+.leagueflow-player-memberships-wrap,
+.leagueflow-table-scroll {
+	width: 0;
+	min-width: 100%;
+}
+
+.leagueflow-admin-card,
+.leagueflow-admin-grid > * {
+	min-width: 0;
+}
+
+.leagueflow-table-scroll:focus-visible,
+.leagueflow-admin-sport-standings__body:focus-visible,
+.leagueflow-player-memberships-wrap:focus-visible {
+	outline: 2px solid #2271b1;
+	outline-offset: 2px;
+}
+
+.leagueflow-player-memberships__add {
+	flex-wrap: wrap;
+}
+
+.leagueflow-player-memberships__add select {
+	max-width: 100%;
+}
+
+.leagueflow-unscheduled {
+	color: #996800;
+	font-weight: 600;
+}
+
+/* Filter box added by admin.js above long user/team selects. */
+.leagueflow-select-search {
+	display: block;
+	margin-bottom: 6px;
+}
+
+.leagueflow-select-search__input {
+	box-sizing: border-box;
+	width: 100%;
+	max-width: 25em;
+}
+
+.leagueflow-form-table select[multiple] {
+	box-sizing: border-box;
+	width: 100%;
+	max-width: 25em;
+}
+
+@media (max-width: 600px) {
+	/* Requests: one request per stacked block on phones. */
+	.leagueflow-requests-table thead {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+	}
+
+	.leagueflow-requests-table,
+	.leagueflow-requests-table tbody,
+	.leagueflow-requests-table tr,
+	.leagueflow-requests-table td,
+	.leagueflow-requests-table th {
+		display: block;
+		box-sizing: border-box;
+		width: 100%;
+	}
+
+	.leagueflow-requests-table td,
+	.leagueflow-requests-table th {
+		padding: 4px 10px;
+	}
+
+	.leagueflow-requests-table tr {
+		border-bottom: 1px solid #dcdcde;
+		padding: 6px 0;
+	}
+
+	.leagueflow-request-action .button {
+		box-sizing: border-box;
+		width: 100%;
+		min-height: 40px;
+	}
+}
+
+/*
+ * Phone edit screens: the record's own details come first, then the
+ * taxonomy and publish panels (core stacks the sidebar first).
+ */
+@media (max-width: 850px) {
+	body.post-type-lf_team #post-body,
+	body.post-type-lf_player #post-body,
+	body.post-type-lf_match #post-body,
+	body.post-type-lf_join_request #post-body,
+	body.post-type-lf_calendar_event #post-body {
+		display: flex;
+		flex-direction: column;
+	}
+
+	body.post-type-lf_team #post-body > *,
+	body.post-type-lf_player #post-body > *,
+	body.post-type-lf_match #post-body > *,
+	body.post-type-lf_join_request #post-body > *,
+	body.post-type-lf_calendar_event #post-body > * {
+		min-width: 0;
+		width: 100%;
+	}
+
+	body.post-type-lf_team #post-body-content,
+	body.post-type-lf_player #post-body-content,
+	body.post-type-lf_match #post-body-content,
+	body.post-type-lf_join_request #post-body-content,
+	body.post-type-lf_calendar_event #post-body-content {
+		order: 1;
+	}
+
+	body.post-type-lf_team #postbox-container-2,
+	body.post-type-lf_player #postbox-container-2,
+	body.post-type-lf_match #postbox-container-2,
+	body.post-type-lf_join_request #postbox-container-2,
+	body.post-type-lf_calendar_event #postbox-container-2 {
+		order: 2;
+	}
+
+	body.post-type-lf_team #postbox-container-1,
+	body.post-type-lf_player #postbox-container-1,
+	body.post-type-lf_match #postbox-container-1,
+	body.post-type-lf_join_request #postbox-container-1,
+	body.post-type-lf_calendar_event #postbox-container-1 {
+		order: 3;
+	}
+}
+
+/*
+ * Player memberships on phones: core's mobile form-table rule turns every
+ * nested th/td into a block, which stacked bare header cells. Show each team
+ * as a labelled card instead (labels come from data-label; controls also
+ * carry their own accessible names).
+ */
+@media (max-width: 782px) {
+	.leagueflow-player-memberships {
+		min-width: 0;
+		border: 0;
+		box-shadow: none;
+	}
+
+	.leagueflow-player-memberships thead {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+	}
+
+	.leagueflow-player-memberships tbody tr {
+		display: block;
+		margin-bottom: 12px;
+		border: 1px solid #c3c4c7;
+		background: #fff;
+	}
+
+	.form-table .leagueflow-player-memberships td,
+	.leagueflow-player-memberships td {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		min-width: 0;
+		padding: 8px 12px;
+		box-sizing: border-box;
+		width: 100%;
+	}
+
+	.form-table .leagueflow-player-memberships td:first-child,
+	.leagueflow-player-memberships td:first-child {
+		display: block;
+		min-width: 0;
+		background: #f6f7f7;
+	}
+
+	.leagueflow-player-memberships td[data-label]:not(:first-child)::before {
+		content: attr(data-label);
+		font-weight: 600;
+	}
+
+	.leagueflow-player-memberships input[type="text"] {
+		min-width: 0;
+		width: 60%;
+	}
+}
+
+.leagueflow-placement-label {
+	display: block;
+	margin-bottom: 4px;
+	font-weight: 600;
+}
+
+.leagueflow-content-counts th {
+	font-weight: 400;
+}
+
+/* Context bar: where am I (breadcrumb) and which sport this screen shows. */
+.leagueflow-context {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px 16px;
+	margin: 12px 20px 0 2px;
+	font-size: 13px;
+}
+
+.leagueflow-breadcrumbs,
+.leagueflow-sport-switch {
+	display: flex;
+	flex-wrap: wrap;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.leagueflow-breadcrumbs li + li::before {
+	content: "\203A";
+	margin: 0 6px;
+	color: #646970;
+}
+
+.leagueflow-breadcrumbs [aria-current="page"] {
+	font-weight: 600;
+}
+
+.leagueflow-sport-switch {
+	gap: 4px;
+}
+
+.leagueflow-sport-switch a {
+	display: inline-block;
+	padding: 3px 10px;
+	border: 1px solid #c3c4c7;
+	border-radius: 999px;
+	background: #fff;
+	text-decoration: none;
+}
+
+.leagueflow-sport-switch a.current {
+	border-color: #2271b1;
+	background: #2271b1;
+	color: #fff;
+}
+
+.leagueflow-breadcrumbs a:focus-visible,
+.leagueflow-context__back a:focus-visible,
+.leagueflow-link-list a:focus-visible,
+.leagueflow-attention a:focus-visible,
+.leagueflow-sport-switch a:focus-visible {
+	outline: 2px solid #2271b1;
+	outline-offset: 2px;
+}
+
+.leagueflow-context__note,
+.leagueflow-context__back {
+	flex-basis: 100%;
+	margin: 0;
+}
+
+.leagueflow-page-intro {
+	max-width: 70em;
+}
+
+.leagueflow-empty-state {
+	margin: 1rem 0;
+	padding: 12px 16px;
+	border: 1px dashed #c3c4c7;
+	background: #fff;
+}
+
+.leagueflow-empty-state p {
+	margin: 0.4em 0;
+}
+
+.leagueflow-link-list {
+	margin: 0;
+}
+
+.leagueflow-link-list li {
+	margin-bottom: 6px;
+}
+
+.leagueflow-attention {
+	margin: 0;
+}
+
+.leagueflow-attention li {
+	margin-bottom: 8px;
+}
+
+.leagueflow-attention__count {
+	display: inline-block;
+	min-width: 2em;
+	margin-right: 4px;
+	padding: 0 6px;
+	border-radius: 999px;
+	background: #f0f0f1;
+	font-weight: 600;
+	text-align: center;
+}
+
+/* Requests inbox. */
+.leagueflow-request-tabs {
+	margin-top: 1rem;
+}
+
+.leagueflow-request-statuses {
+	float: none;
+	margin: 10px 0;
+}
+
+.leagueflow-request-filters {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px 10px;
+	margin-bottom: 10px;
+}
+
+.leagueflow-inline-check {
+	white-space: normal;
+}
+
+.leagueflow-badge {
+	display: inline-block;
+	padding: 0 8px;
+	border-radius: 999px;
+	background: #f0f0f1;
+	font-weight: 600;
+}
+
+.leagueflow-badge--pending {
+	background: #fcf0e3;
+	color: #8a4b00;
+}
+
+.leagueflow-badge--approved {
+	background: #edfaef;
+	color: #00651c;
+}
+
+.leagueflow-badge--declined,
+.leagueflow-badge--dismissed {
+	background: #f0f0f1;
+	color: #3c434a;
+}
+
+.leagueflow-flags {
+	margin: 4px 0 0;
+	color: #b32d2e;
+}
+
+.leagueflow-row-current > * {
+	box-shadow: inset 4px 0 0 #2271b1;
+}
+
+.leagueflow-request-detail:focus {
+	outline: 2px solid #2271b1;
+	outline-offset: 2px;
+}
+
+.leagueflow-detail-list {
+	display: grid;
+	grid-template-columns: minmax(8em, max-content) 1fr;
+	gap: 4px 16px;
+	margin: 0 0 1rem;
+}
+
+.leagueflow-detail-list dt {
+	font-weight: 600;
+}
+
+.leagueflow-detail-list dd {
+	margin: 0;
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+.leagueflow-request-actions {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+	gap: 12px;
+}
+
+.leagueflow-request-action {
+	padding: 10px 12px;
+	border: 1px solid #dcdcde;
+}
+
+.leagueflow-request-action p {
+	margin: 0.4em 0;
+}
+
+.leagueflow-history {
+	margin-left: 1.5em;
+}
+
+/* Matches list: give the fixture name room instead of 6-7 wrapped lines. */
+.post-type-lf_match .wp-list-table .column-title {
+	width: 28%;
+}
+
+.post-type-lf_match .wp-list-table .column-score,
+.post-type-lf_match .wp-list-table .column-status {
+	width: 8%;
+}
+
+@media (max-width: 600px) {
+	.leagueflow-detail-list {
+		grid-template-columns: 1fr;
+	}
+
+	.leagueflow-detail-list dd {
+		margin-bottom: 6px;
+	}
+}
+
+/* Long option text must not widen settings grids or filter bars on narrow screens. */
+.leagueflow-settings-panel .leagueflow-tie-breaker,
+.leagueflow-settings-panel .form-table td,
+.leagueflow-rule-override-form select {
+	min-width: 0;
+	max-width: 100%;
+}
+
+.leagueflow-filter-bar select {
+	max-width: 100%;
+}
+
+/* Native list filters wrap as a group when sport, level, status and season are shown. */
+.post-type-lf_match .tablenav.top,
+.post-type-lf_team .tablenav.top,
+.post-type-lf_player .tablenav.top,
+.post-type-lf_calendar_event .tablenav.top {
+	height: auto;
+	min-height: 30px;
+}
+
+.post-type-lf_match .tablenav .actions,
+.post-type-lf_team .tablenav .actions,
+.post-type-lf_player .tablenav .actions,
+.post-type-lf_calendar_event .tablenav .actions {
+	max-width: 100%;
+	box-sizing: border-box;
+}
+
+.post-type-lf_match .tablenav .actions select,
+.post-type-lf_team .tablenav .actions select,
+.post-type-lf_player .tablenav .actions select,
+.post-type-lf_calendar_event .tablenav .actions select {
+	max-width: min(230px, 100%);
+	margin-bottom: 4px;
+}
+
+#leagueflow-result-preview {
+	border-left: 3px solid #2271b1;
+	padding: 6px 10px;
+	background: #f0f6fc;
+	max-width: 48em;
+}
+
+.leagueflow-rule-overrides,
+.leagueflow-setup-page .leagueflow-mapping {
+	margin-top: 12px;
+}
+
+.leagueflow-rule-override-form label + select {
+	margin: 0 12px 6px 4px;
+}
+
+.leagueflow-check-list {
+	margin: 0.5em 0;
+	columns: 18em auto;
+}
+
+.leagueflow-check-list li {
+	break-inside: avoid;
+}
+
+.leagueflow-badge--ok {
+	background: #edfaef;
+	color: #00450c;
+}
+
+.leagueflow-badge--attention,
+.leagueflow-badge--unknown {
+	background: #fcf9e8;
+	color: #614200;
+}
+
+.leagueflow-badge--optional {
+	background: #f0f0f1;
+	color: #2c3338;
+}
+
+.leagueflow-fixture-group h3 .button {
+	margin-left: 8px;
+	vertical-align: middle;
+}
+
+/* Settings panels: long checkbox labels wrap inside their panel instead of widening the grid. */
+.leagueflow-settings-grid > *,
+.leagueflow-settings-secondary > *,
+.leagueflow-settings-panel .form-table tbody > * {
+	min-width: 0;
+}
+
+.leagueflow-settings-panel label {
+	max-width: 100%;
+	white-space: normal;
+	overflow-wrap: anywhere;
+}
+
+.leagueflow-settings-panel input.regular-text {
+	width: 100%;
+	max-width: 100%;
+	box-sizing: border-box;
+}
+
+/* Requests: secondary decisions (decline, dismiss, move, reopen) sit in a native disclosure. */
+.leagueflow-request-more {
+	grid-column: 1 / -1;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	padding: 0 12px;
+	background: #fff;
+}
+
+.leagueflow-request-more > summary {
+	cursor: pointer;
+	padding: 10px 0;
+	font-weight: 600;
+}
+
+.leagueflow-request-more[open] > summary {
+	border-bottom: 1px solid #dcdcde;
+	margin-bottom: 8px;
+}
+
+.leagueflow-request-more .leagueflow-request-action {
+	margin-bottom: 12px;
+}
+
+.leagueflow-scope-note {
+	display: inline-block;
+	max-width: 100%;
+	margin: 4px 8px 4px 0;
+	white-space: normal;
+}
+
+/*
+ * Filter bars: each label travels with its own control. Without a wrapper the
+ * label and select were separate flex items, so on phones a label could wrap
+ * onto the line of the previous select.
+ */
+.leagueflow-filter-field {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	max-width: 100%;
+	min-width: 0;
+}
+
+.leagueflow-filter-field select,
+.leagueflow-filter-field input {
+	min-width: 0;
+	max-width: 100%;
+}
+
+@media (max-width: 782px) {
+	.leagueflow-filter-field {
+		flex-direction: column;
+		align-items: stretch;
+		gap: 2px;
+		flex: 1 1 100%;
+	}
+}
+
+/*
+ * Settings scoring row: a label that wraps to two lines ("Points for a draw
+ * (tie)") must not push its input below the neighbouring inputs. The label
+ * takes the spare height and the input sits on the shared bottom line.
+ */
+.leagueflow-settings-panel .form-table tr.leagueflow-setting-row--points {
+	display: flex;
+	flex-direction: column;
+}
+
+.leagueflow-settings-panel .form-table tr.leagueflow-setting-row--points > th {
+	flex: 1 1 auto;
+}
+
+/*
+ * Results screen: progress tabs as count cards, then one card per game with
+ * its score, result type and publish / hold / schedule actions.
+ */
+.leagueflow-results-filter {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 12px 0;
+}
+
+.leagueflow-results-summary {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+	gap: 8px;
+	margin: 0 0 16px;
+	padding: 0;
+	list-style: none;
+}
+
+.leagueflow-results-summary__item a {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-height: 44px;
+	padding: 10px 12px;
+	border: 1px solid #dcdcde;
+	border-radius: 6px;
+	background: #fff;
+	color: #1d2327;
+	text-decoration: none;
+}
+
+.leagueflow-results-summary__item strong {
+	font-size: 22px;
+	line-height: 1.2;
+}
+
+.leagueflow-results-summary__item.is-current a {
+	border-color: #2271b1;
+	box-shadow: inset 0 0 0 1px #2271b1;
+}
+
+.leagueflow-results-summary__item.is-needs_score strong,
+.leagueflow-results-summary__item.is-conflict strong {
+	color: #b32d2e;
+}
+
+.leagueflow-results-summary__item.is-held strong {
+	color: #996800;
+}
+
+.leagueflow-results-bulk {
+	margin: 0 0 12px;
+}
+
+.leagueflow-results-list {
+	display: grid;
+	gap: 10px;
+	max-width: 960px;
+}
+
+.leagueflow-result-card {
+	padding: 12px 16px;
+	border: 1px solid #dcdcde;
+	border-left: 4px solid #c3c4c7;
+	border-radius: 6px;
+	background: #fff;
+}
+
+.leagueflow-result-card.is-needs_score,
+.leagueflow-result-card.is-conflict {
+	border-left-color: #d63638;
+}
+
+.leagueflow-result-card.is-held {
+	border-left-color: #dba617;
+}
+
+.leagueflow-result-card.is-scheduled {
+	border-left-color: #2271b1;
+}
+
+.leagueflow-result-card.is-published {
+	border-left-color: #00a32a;
+}
+
+.leagueflow-result-card__head h2 {
+	margin: 0;
+	font-size: 15px;
+}
+
+.leagueflow-result-card__meta,
+.leagueflow-result-card__history,
+.leagueflow-result-card__status {
+	margin: 2px 0 0;
+	color: #50575e;
+}
+
+.leagueflow-result-card__flag {
+	margin-left: 6px;
+	padding: 1px 6px;
+	border-radius: 10px;
+	background: #fcf0f1;
+	color: #8a2424;
+	font-size: 12px;
+}
+
+.leagueflow-result-card__score {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-end;
+	gap: 8px 12px;
+	margin: 10px 0;
+}
+
+.leagueflow-result-card__score label {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	font-size: 12px;
+}
+
+.leagueflow-result-card__score input[type="number"] {
+	width: 72px;
+	min-height: 36px;
+	font-size: 16px;
+	text-align: center;
+}
+
+.leagueflow-result-card__score > span {
+	padding-bottom: 8px;
+	font-size: 16px;
+}
+
+.leagueflow-result-card__actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+}
+
+.leagueflow-result-card__schedule {
+	display: inline-flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px;
+}
+
+.leagueflow-result-card__edit {
+	margin-left: auto;
+}
+
+@media (max-width: 782px) {
+	.leagueflow-result-card__actions .button,
+	.leagueflow-result-card__schedule input {
+		min-height: 44px;
+	}
+
+	.leagueflow-result-card__actions > .button,
+	.leagueflow-result-card__schedule {
+		flex: 1 1 100%;
+	}
+
+	.leagueflow-result-card__edit {
+		margin-left: 0;
+	}
+}
+
+/* Calendar Event poster field. */
+.leagueflow-poster-field__preview {
+	display: block;
+	max-width: 220px;
+	max-height: 300px;
+	height: auto;
+	margin-bottom: 8px;
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+}
+
+.leagueflow-poster-field__preview[hidden] {
+	display: none;
+}
+
+.leagueflow-poster-field [hidden] {
+	display: none !important;
+}
+
+/* Referee conflicts: an assigned referee plays in the game. */
+.leagueflow-result-card__conflict,
+.leagueflow-referee-conflict {
+	margin: 0.5rem 0 0;
+	padding: 0.5rem 0.75rem;
+	border-left: 4px solid #b32d2e;
+	background: #fcf0f1;
+	color: #1d2327;
+}
+
+.leagueflow-referee-add {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.leagueflow-referee-add .description {
+	flex-basis: 100%;
+	margin: 0;
 }

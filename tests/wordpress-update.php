@@ -39,7 +39,7 @@ for ( $index = 0; $index < $zip->numFiles; ++$index ) {
 	$fixture->addFromString( $name, $contents );
 }
 $zip->close(); $fixture->close();
-$repo = 'https://github.com/amirrad98/intramurals';
+$repo = 'https://github.com/ahzs645/leugueflow';
 $package = $repo . '/releases/download/v' . $next . '/leagueflow-' . $next . '.zip';
 $manifest = array( 'schema' => 1, 'slug' => 'leagueflow', 'version' => $next,
 	'sha256' => hash_file( 'sha256', $fixture_zip ), 'package' => $package, 'requires' => '6.5', 'requires_php' => '8.1' );
@@ -58,8 +58,8 @@ $transport = static function( $pre, $args, $url ) use ( $repo, $next, $package, 
 	return array( 'headers' => array(), 'body' => $body, 'response' => array( 'code' => 200, 'message' => 'OK' ), 'cookies' => array(), 'filename' => $args['filename'] ?? null );
 };
 add_filter( 'pre_http_request', $transport, 10, 3 );
-delete_site_transient( 'leagueflow_github_release_' . md5( 'latest' ) );
-delete_site_transient( 'leagueflow_github_release_' . md5( $next ) );
+delete_site_transient( 'leagueflow_github_release_' . md5( $repo . '|latest' ) );
+delete_site_transient( 'leagueflow_github_release_' . md5( $repo . '|' . $next ) );
 update_option( 'leagueflow_update_sentinel', 'preserve league settings' );
 $team = wp_insert_post( array( 'post_type' => 'lf_team', 'post_status' => 'publish', 'post_title' => 'Preserved release test team' ) );
 leagueflow_test_assert( $team && ! is_wp_error( $team ), 'Sentinel team could not be created.' );

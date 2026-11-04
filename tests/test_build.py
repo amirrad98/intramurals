@@ -13,7 +13,7 @@ class BuildTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name) / "source"
-        shutil.copytree(ROOT, self.root, ignore=shutil.ignore_patterns(".git", "dist", "__pycache__"))
+        shutil.copytree(ROOT, self.root, ignore=shutil.ignore_patterns(".git", "dist", "__pycache__", "node_modules", ".DS_Store"))
 
     def tearDown(self):
         self.temp.cleanup()
@@ -33,7 +33,7 @@ class BuildTests(unittest.TestCase):
                 self.assertEqual(info.date_time, (2020, 1, 1, 0, 0, 0))
                 self.assertEqual(info.external_attr >> 16, 0o100644)
                 self.assertEqual(info.compress_type, ZIP_STORED)
-                self.assertEqual(z.read(info), (self.root / info.filename.removeprefix("leagueflow/")).read_bytes())
+                self.assertEqual(z.read(info), (self.root / info.filename[len("leagueflow/"):]).read_bytes())
         self.assertEqual(manifest["sha256"], hashlib.sha256(first.read_bytes()).hexdigest())
         self.assertEqual(manifest["version"], metadata(self.root)["version"])
         self.assertEqual(manifest["requires"], "6.5")
@@ -72,6 +72,23 @@ class BuildTests(unittest.TestCase):
         link.unlink()
         directory = self.root / "includes" / "linked-dir"
         directory.symlink_to(self.root / "templates", target_is_directory=True)
+        with self.assertRaises(ValueError):
+            build(self.root)
+
+    def test_finder_metadata_is_excluded_without_accepting_links_or_hidden_directories(self):
+        archive, manifest = build(self.root, self.root / 'before-metadata')
+        baseline = archive.read_bytes()
+        metadata_file = self.root / 'blocks' / '.DS_Store'
+        metadata_file.write_bytes(b'Finder folder metadata')
+        archive, again = build(self.root, self.root / 'after-metadata')
+        self.assertEqual(archive.read_bytes(), baseline)
+        self.assertEqual(again, manifest)
+        metadata_file.unlink()
+        metadata_file.symlink_to(self.root / 'leagueflow.php')
+        with self.assertRaises(ValueError):
+            build(self.root)
+        metadata_file.unlink()
+        metadata_file.mkdir()
         with self.assertRaises(ValueError):
             build(self.root)
 

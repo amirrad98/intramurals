@@ -1,0 +1,11 @@
+{
+  "name": "leagueflow-development-tests",
+  "private": true,
+  "scripts": {
+    "test:calendar": "node tests/run-calendar-regressions.cjs",
+    "test": "npm run test:calendar && node tests/portal-consent.cjs && node tests/admin-workflow.cjs"
+  },
+  "devDependencies": {
+    "jsdom": "24.1.3"
+  }
+}

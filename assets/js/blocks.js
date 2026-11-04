@@ -39,11 +39,9 @@
 				value: sport,
 				options: withBlankOption( data.sports, __( 'Select a sport', 'leagueflow' ) ),
 				onChange: function( value ) {
-					props.setAttributes( {
-						sport: value,
-						competition: '',
-						season: ''
-					} );
+					var next = { sport: value, competition: '', season: '' };
+					if ( Object.prototype.hasOwnProperty.call( props.attributes, 'team' ) ) { next.team = ''; }
+					props.setAttributes( next );
 				}
 			} ),
 			el( SelectControl, {
@@ -57,7 +55,7 @@
 			el( SelectControl, {
 				label: __( 'Season', 'leagueflow' ),
 				value: props.attributes.season || '',
-				options: withBlankOption( filterBySport( data.seasons, sport ), __( 'All seasons', 'leagueflow' ) ),
+				options: [ { label: __( 'Current season (if configured)', 'leagueflow' ), value: '' }, { label: __( 'All seasons', 'leagueflow' ), value: 'all' } ].concat( filterBySport( data.seasons, sport ) ),
 				onChange: function( value ) {
 					props.setAttributes( { season: value } );
 				}
@@ -102,6 +100,27 @@
 		);
 	}
 
+	function CalendarPreview( props ) {
+		var ref = wp.element.useRef( null );
+		var blockProps = wp.blockEditor.useBlockProps( { ref: ref, className: 'leagueflow-editor-calendar' } );
+		wp.element.useEffect( function () {
+			var container = ref.current;
+			if ( ! container || ! window.LeagueFlowCalendar ) { return; }
+			var roots = new Set();
+			var initialize = function () {
+				roots.forEach( function ( root ) { if ( ! container.contains( root ) ) { window.LeagueFlowCalendar.destroy( root ); roots.delete( root ); } } );
+				container.querySelectorAll( '[data-leagueflow-calendar]' ).forEach( function ( root ) { window.LeagueFlowCalendar.init( root ); roots.add( root ); } );
+			};
+			var observer = new MutationObserver( initialize );
+			observer.observe( container, { childList: true, subtree: true } );
+			initialize();
+			return function () { observer.disconnect(); roots.forEach( function ( root ) { window.LeagueFlowCalendar.destroy( root ); } ); };
+		}, [] );
+		return el( 'div', blockProps,
+			el( ServerSideRender, { block: 'leagueflow/match-calendar', attributes: props.attributes } ),
+			el( 'p', { className: 'leagueflow-editor-note' }, __( 'Interactive preview of published matches and events. The website uses the same filters and layout.', 'leagueflow' ) ) );
+	}
+
 	function renderPreview( blockName, attributes ) {
 		return el(
 			Fragment,
@@ -144,7 +163,7 @@
 						el( SelectControl, {
 							label: __( 'Season', 'leagueflow' ),
 							value: props.attributes.season || '',
-							options: withBlankOption( data.seasons, __( 'All seasons', 'leagueflow' ) ),
+							options: [ { label: __( 'Current season (if configured)', 'leagueflow' ), value: '' }, { label: __( 'All seasons', 'leagueflow' ), value: 'all' } ].concat( data.seasons || [] ),
 							onChange: function( value ) {
 								props.setAttributes( { season: value } );
 							}
@@ -273,6 +292,7 @@
 
 	registerBlockType( 'leagueflow/match-calendar', {
 		edit: function( props ) {
+			var matchesOnly = !! props.attributes.team || false === props.attributes.include_events;
 			return el(
 				Fragment,
 				{},
@@ -284,10 +304,8 @@
 							value: props.attributes.view || 'month',
 							options: [
 								{ label: __( 'Month', 'leagueflow' ), value: 'month' },
-								{ label: __( 'List', 'leagueflow' ), value: 'list' },
-								{ label: __( 'Week', 'leagueflow' ), value: 'week' },
-								{ label: __( 'Day', 'leagueflow' ), value: 'day' }
-							],
+								{ label: __( 'List', 'leagueflow' ), value: 'list' }
+							].concat( false !== props.attributes.show_week ? [ { label: __( 'Week', 'leagueflow' ), value: 'week' } ] : [] ).concat( false !== props.attributes.show_day ? [ { label: __( 'Day', 'leagueflow' ), value: 'day' } ] : [] ),
 							onChange: function( value ) {
 								props.setAttributes( { view: value } );
 							}
@@ -297,29 +315,29 @@
 							value: props.attributes.team || '',
 							options: withBlankOption( filterBySport( data.teams, props.attributes.sport || '' ), __( 'All teams', 'leagueflow' ) ),
 							onChange: function( value ) {
-								props.setAttributes( { team: value } );
+								props.setAttributes( { team: value, event_type: value && props.attributes.event_type !== 'match' ? '' : props.attributes.event_type } );
 							}
 						} ),
 						el( ToggleControl, {
 							label: __( 'Include standalone events', 'leagueflow' ),
-							help: __( 'Show drop-ins and other calendar events alongside matches.', 'leagueflow' ),
+							help: __( 'Show drop-ins and other calendar events. A team filter shows matches only.', 'leagueflow' ),
 							checked: false !== props.attributes.include_events,
 							onChange: function( value ) {
-								props.setAttributes( { include_events: value } );
+								props.setAttributes( { include_events: value, event_type: ! value && props.attributes.event_type !== 'match' ? '' : props.attributes.event_type } );
 							}
 						} ),
 						el( ToggleControl, {
 							label: __( 'Show week view', 'leagueflow' ),
 							checked: false !== props.attributes.show_week,
 							onChange: function( value ) {
-								props.setAttributes( { show_week: value } );
+								props.setAttributes( { show_week: value, view: ! value && props.attributes.view === 'week' ? 'month' : props.attributes.view } );
 							}
 						} ),
 						el( ToggleControl, {
 							label: __( 'Show day view', 'leagueflow' ),
 							checked: false !== props.attributes.show_day,
 							onChange: function( value ) {
-								props.setAttributes( { show_day: value } );
+								props.setAttributes( { show_day: value, view: ! value && props.attributes.view === 'day' ? 'month' : props.attributes.view } );
 							}
 						} ),
 						el( RangeControl, {
@@ -341,10 +359,36 @@
 							onChange: function( value ) {
 								props.setAttributes( { list_more: value } );
 							}
+						} ), el( SelectControl, {
+							label: __( 'Event type', 'leagueflow' ), value: props.attributes.event_type || '',
+							options: [ { label: matchesOnly ? __( 'All matches', 'leagueflow' ) : __( 'Matches and all event types', 'leagueflow' ), value: '' }, { label: __( 'Matches only', 'leagueflow' ), value: 'match' } ].concat( matchesOnly ? [] : [ { label: __( 'Drop-ins', 'leagueflow' ), value: 'drop_in' }, { label: __( 'Practices', 'leagueflow' ), value: 'practice' }, { label: __( 'Clinics', 'leagueflow' ), value: 'clinic' }, { label: __( 'Tournaments', 'leagueflow' ), value: 'tournament' }, { label: __( 'Meetings', 'leagueflow' ), value: 'meeting' }, { label: __( 'Other events', 'leagueflow' ), value: 'other' } ] ),
+							onChange: function ( value ) { props.setAttributes( { event_type: value } ); }
+						} ), el( SelectControl, {
+							label: __( 'Match stage', 'leagueflow' ), value: props.attributes.include_knockout || '',
+							options: [ { label: __( 'League and knockout', 'leagueflow' ), value: '' }, { label: __( 'League matches', 'leagueflow' ), value: '0' }, { label: __( 'Knockout matches', 'leagueflow' ), value: '1' } ],
+							onChange: function ( value ) { props.setAttributes( { include_knockout: value } ); }
+						} ), el( SelectControl, {
+							label: __( 'Month day details', 'leagueflow' ), value: props.attributes.month_display || 'sidebar',
+							options: [ { label: __( 'Persistent sidebar', 'leagueflow' ), value: 'sidebar' }, { label: __( 'Popover', 'leagueflow' ), value: 'popover' }, { label: __( 'Expand below calendar', 'leagueflow' ), value: 'dropdown' } ],
+							onChange: function ( value ) { props.setAttributes( { month_display: value } ); }
+						} ), el( SelectControl, {
+							label: __( 'Sidebar position', 'leagueflow' ), value: props.attributes.sidebar_position || 'right', disabled: props.attributes.month_display && props.attributes.month_display !== 'sidebar',
+							options: [ { label: __( 'Right', 'leagueflow' ), value: 'right' }, { label: __( 'Left', 'leagueflow' ), value: 'left' } ],
+							onChange: function ( value ) { props.setAttributes( { sidebar_position: value } ); }
+						} ), el( ToggleControl, {
+							label: __( 'Show event cost', 'leagueflow' ), checked: false !== props.attributes.show_cost,
+							onChange: function ( value ) { props.setAttributes( { show_cost: value } ); }
+						} ), el( SelectControl, {
+							label: __( 'Event order', 'leagueflow' ), value: props.attributes.event_sort_order || 'asc',
+							options: [ { label: __( 'Earliest first', 'leagueflow' ), value: 'asc' }, { label: __( 'Latest first', 'leagueflow' ), value: 'desc' } ],
+							onChange: function ( value ) { props.setAttributes( { event_sort_order: value } ); }
+						} ), el( RangeControl, {
+							label: __( 'Events per request', 'leagueflow' ), help: __( 'Additional pages remain available. Moving to another date loads that range directly.', 'leagueflow' ), value: props.attributes.limit || 100, min: 10, max: 100, step: 10,
+							onChange: function ( value ) { props.setAttributes( { limit: value } ); }
 						} )
 					] )
 				),
-				renderPreview( 'leagueflow/match-calendar', props.attributes )
+				el( CalendarPreview, { attributes: props.attributes } )
 			);
 		},
 		save: function() {

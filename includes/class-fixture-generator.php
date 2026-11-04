@@ -27,6 +27,20 @@ class Fixture_Generator {
 	const META_MATCHDAY = 'lf_matchday';
 
 	/**
+	 * Match meta key linking a generated match to its generation run.
+	 *
+	 * @var string
+	 */
+	const META_BATCH = '_lf_fixture_batch';
+
+	/**
+	 * Generation scope (sport|level|competition|season) stored on each generated
+	 * match, so the duplicate check still sees a match whose terms could not all
+	 * be saved.
+	 */
+	const META_SCOPE = '_lf_fixture_scope';
+
+	/**
 	 * Field availability manager for optional auto-scheduling.
 	 *
 	 * @var Field_Availability_Manager
@@ -206,7 +220,8 @@ class Fixture_Generator {
 	 *
 	 * @param array<int, array<string, mixed>> $rounds Rounds from build_rounds().
 	 * @param array<string, mixed>             $context Context term IDs and options.
-	 * @return array<string, mixed> Result summary with created IDs.
+	 * @return array<string, mixed>|\WP_Error Result with created IDs, failed pairings and
+	 *                                     incomplete matches (created but missing part of their scope).
 	 */
 	public function persist( $rounds, $context ) {
 		$context = $this->normalize_context( $context );
@@ -225,7 +240,9 @@ class Fixture_Generator {
 			}
 		}
 
-		$created = array();
+		$created    = array();
+		$failed     = array();
+		$incomplete = array();
 
 		foreach ( $rounds as $round ) {
 			$round_number = (int) $round['round'];
@@ -248,61 +265,262 @@ class Fixture_Generator {
 				);
 
 				if ( is_wp_error( $post_id ) || ! $post_id ) {
+					// Reported, never hidden: the pairing was not created.
+					$failed[] = array(
+						'home'  => $home_id,
+						'away'  => $away_id,
+						'error' => is_wp_error( $post_id ) ? $post_id->get_error_message() : __( 'The match could not be saved.', 'leagueflow' ),
+					);
 					continue;
 				}
 
-				update_post_meta( $post_id, 'lf_home_team_id', $home_id );
-				update_post_meta( $post_id, 'lf_away_team_id', $away_id );
-				update_post_meta( $post_id, 'lf_status', 'scheduled' );
-				update_post_meta( $post_id, self::META_MATCHDAY, $round_number );
-				update_post_meta( $post_id, 'lf_is_knockout', 0 );
+				$problems = array();
 
-				$this->assign_context_terms( $post_id, $context );
+				foreach ( array( 'lf_home_team_id' => $home_id, 'lf_away_team_id' => $away_id, 'lf_status' => 'scheduled', self::META_MATCHDAY => $round_number, 'lf_is_knockout' => 0 ) as $key => $value ) {
+					if ( false === update_post_meta( $post_id, $key, $value ) && (string) get_post_meta( $post_id, $key, true ) !== (string) $value ) {
+						$problems[] = $key;
+					}
+				}
+
+				if ( '' !== (string) $context['batch'] && false === update_post_meta( $post_id, self::META_BATCH, sanitize_key( (string) $context['batch'] ) ) ) {
+					$problems[] = self::META_BATCH;
+				}
+
+				if ( false === update_post_meta( $post_id, self::META_SCOPE, $this->scope_key( $context, $context['league_level_id'] ) ) ) {
+					$problems[] = self::META_SCOPE;
+				}
+
+				$problems = array_merge( $problems, $this->assign_context_terms( $post_id, $context ) );
+
+				if ( $problems ) {
+					// The match exists but is missing part of its scope. Keep it (no
+					// hidden deletes) and list it separately for review.
+					$incomplete[] = array( 'id' => (int) $post_id, 'missing' => $problems );
+					continue;
+				}
 
 				$created[] = (int) $post_id;
 			}
 		}
 
 		return array(
-			'created'       => count( $created ),
-			'created_ids'   => $created,
-			'rounds'        => count( $rounds ),
-			'post_status'   => $status,
+			'created'         => count( $created ),
+			'created_ids'     => $created,
+			'failed'          => count( $failed ),
+			'failed_pairings' => $failed,
+			'incomplete_ids'  => wp_list_pluck( $incomplete, 'id' ),
+			'incomplete'      => $incomplete,
+			'rounds'          => count( $rounds ),
+			'post_status'     => $status,
+		);
+	}
+
+	/**
+	 * Server-side preview of a generation run. No writes.
+	 *
+	 * Teams are grouped by league level (division): fixtures are only ever made
+	 * between teams of the same level, matching the manual match rule. Teams
+	 * without a level are listed and left out. With "All levels" and more than
+	 * one level in scope, a person must choose one level or explicitly ask for
+	 * each level to be generated separately. Pairings that already exist in
+	 * the same sport, level, competition and season are counted as duplicates
+	 * and are not created again.
+	 *
+	 * @param array<string, mixed> $context Context term IDs and options.
+	 * @return array<string, mixed>|\WP_Error
+	 */
+	public function preview( $context ) {
+		$context = $this->normalize_context( $context );
+
+		if ( ! $context['sport_id'] ) {
+			return new \WP_Error( 'leagueflow_fixtures_sport', __( 'Choose a sport. Fixtures are generated for one sport at a time.', 'leagueflow' ) );
+		}
+
+		$team_ids  = $this->get_context_team_ids( $context );
+		$groups    = array();
+		$no_level  = array();
+		$legs      = 2 === (int) $context['legs'] ? 2 : 1;
+
+		foreach ( $team_ids as $team_id ) {
+			$level_id = get_post_primary_term_id( $team_id, 'lf_league_level' );
+
+			if ( ! $level_id ) {
+				$no_level[] = $team_id;
+				continue;
+			}
+
+			$groups[ $level_id ][] = $team_id;
+		}
+
+		ksort( $groups );
+
+		$summary = array();
+		$state   = array( $context['sport_id'], $context['competition_id'], $context['season_id'], $context['league_level_id'], $legs, (int) ! empty( $context['per_level'] ) );
+
+		foreach ( $groups as $level_id => $group_team_ids ) {
+			$level      = get_term( $level_id, 'lf_league_level' );
+			$rounds     = count( $group_team_ids ) >= 2 ? $this->build_rounds( $group_team_ids, $legs ) : array();
+			$existing   = $this->existing_pair_keys( $context, $level_id, $legs );
+			$new        = 0;
+			$duplicates = 0;
+
+			foreach ( $rounds as $round ) {
+				foreach ( $round['matches'] as $pairing ) {
+					isset( $existing[ $this->pair_key( $pairing['home'], $pairing['away'], $legs ) ] ) ? ++$duplicates : ++$new;
+				}
+			}
+
+			$summary[] = array(
+				'level_id'   => (int) $level_id,
+				'level_name' => $level instanceof \WP_Term ? $level->name : '#' . $level_id,
+				'team_ids'   => $group_team_ids,
+				'new'        => $new,
+				'duplicates' => $duplicates,
+			);
+			$state[]   = $level_id . ':' . implode( ',', $group_team_ids ) . ':' . $new . ':' . $duplicates;
+		}
+
+		$state[] = 'none:' . implode( ',', $no_level );
+
+		return array(
+			'groups'                => $summary,
+			'no_level_team_ids'     => $no_level,
+			'requires_level_choice' => ! $context['league_level_id'] && count( $summary ) > 1 && empty( $context['per_level'] ),
+			'new'                   => array_sum( wp_list_pluck( $summary, 'new' ) ),
+			'duplicates'            => array_sum( wp_list_pluck( $summary, 'duplicates' ) ),
+			'token'                 => substr( hash( 'sha256', implode( '|', $state ) ), 0, 24 ),
 		);
 	}
 
 	/**
 	 * Generate and persist fixtures for a context, optionally scheduling them.
 	 *
-	 * @param array<string, mixed> $context Context term IDs and options.
+	 * Re-runs the preview under a lock and refuses when the scope needs a level
+	 * choice, when the reviewed preview token no longer matches, or when every
+	 * pairing already exists. Existing matches are never changed.
+	 *
+	 * @param array<string, mixed> $context Context term IDs and options (token = preview token).
 	 * @return array<string, mixed>|\WP_Error Result summary or an error.
 	 */
 	public function generate( $context ) {
 		if ( ! current_user_can( 'leagueflow_manage_fixtures' ) ) {
 			return new \WP_Error( 'leagueflow_fixtures_forbidden', __( 'You do not have permission to generate fixtures.', 'leagueflow' ), array( 'status' => 403 ) );
 		}
-		$context  = $this->normalize_context( $context );
-		$team_ids = $this->get_context_team_ids( $context );
 
-		if ( count( $team_ids ) < 2 ) {
-			return new \WP_Error(
-				'leagueflow_fixtures_teams',
-				__( 'At least two teams must match the selected competition, season, sport, and level.', 'leagueflow' )
-			);
+		$context = $this->normalize_context( $context );
+		$lock    = db_lock_name( 'fix', (string) absint( $context['sport_id'] ) );
+
+		if ( ! $this->lock( $lock ) ) {
+			return new \WP_Error( 'leagueflow_fixtures_busy', __( 'Fixtures are already being generated for this sport, or the generation lock is unavailable. Nothing was created; reload and check.', 'leagueflow' ) );
 		}
 
-		$rounds = $this->build_rounds( $team_ids, $context['legs'] );
-		$result = $this->persist( $rounds, $context );
-		if ( is_wp_error( $result ) ) { return $result; }
+		try {
+			$preview = $this->preview( $context );
 
-		$result['teams']     = count( $team_ids );
-		$result['scheduled'] = 0;
+			if ( is_wp_error( $preview ) ) {
+				return $preview;
+			}
+
+			if ( '' !== (string) $context['token'] && ! hash_equals( $preview['token'], (string) $context['token'] ) ) {
+				return new \WP_Error( 'leagueflow_fixtures_stale', __( 'The teams or existing matches changed since you reviewed this scope (or it was already generated). Nothing was created; review the preview again.', 'leagueflow' ) );
+			}
+
+			if ( $preview['requires_level_choice'] ) {
+				return new \WP_Error( 'leagueflow_fixtures_level', __( 'Teams in different levels are in scope. Choose one level, or choose to generate each level separately. Nothing was created.', 'leagueflow' ) );
+			}
+
+			$groups = array_values( array_filter( $preview['groups'], static function ( $group ) { return count( $group['team_ids'] ) >= 2; } ) );
+
+			if ( ! $groups ) {
+				return new \WP_Error(
+					'leagueflow_fixtures_teams',
+					__( 'At least two teams in the same level must match the selected competition, season, sport, and level.', 'leagueflow' )
+				);
+			}
+
+			if ( ! $preview['new'] ) {
+				return new \WP_Error( 'leagueflow_fixtures_duplicates', __( 'Every pairing in this scope already exists. Nothing was created.', 'leagueflow' ) );
+			}
+
+			$legs             = 2 === (int) $context['legs'] ? 2 : 1;
+			$context['batch'] = strtolower( wp_generate_password( 12, false, false ) );
+			$result           = array(
+				'created'         => 0,
+				'created_ids'     => array(),
+				'failed'          => 0,
+				'failed_pairings' => array(),
+				'incomplete_ids'  => array(),
+				'incomplete'      => array(),
+				'duplicates'      => 0,
+				'teams'           => 0,
+				'groups'          => array(),
+				'batch'           => $context['batch'],
+				'post_status'     => '',
+				'partial'         => false,
+				'partial_error'   => '',
+			);
+
+			foreach ( $groups as $group ) {
+				$existing = $this->existing_pair_keys( $context, $group['level_id'], $legs );
+				$rounds   = array();
+
+				foreach ( $this->build_rounds( $group['team_ids'], $legs ) as $round ) {
+					$round['matches'] = array_values(
+						array_filter(
+							$round['matches'],
+							function ( $pairing ) use ( $existing, $legs ) {
+								return ! isset( $existing[ $this->pair_key( $pairing['home'], $pairing['away'], $legs ) ] );
+							}
+						)
+					);
+					$rounds[]         = $round;
+				}
+
+				$persisted = $this->persist( $rounds, array_merge( $context, array( 'league_level_id' => $group['level_id'] ) ) );
+
+				if ( is_wp_error( $persisted ) ) {
+					if ( ! $result['created'] && ! $result['incomplete_ids'] ) {
+						return $persisted;
+					}
+
+					// Earlier levels were written: keep them and report the stop.
+					$result['partial']       = true;
+					$result['partial_error'] = $persisted->get_error_message();
+					break;
+				}
+
+				$result['created']        += (int) $persisted['created'];
+				$result['created_ids']     = array_merge( $result['created_ids'], $persisted['created_ids'] );
+				$result['failed']         += (int) $persisted['failed'];
+				$result['failed_pairings'] = array_merge( $result['failed_pairings'], $persisted['failed_pairings'] );
+				$result['incomplete_ids']  = array_merge( $result['incomplete_ids'], $persisted['incomplete_ids'] );
+				$result['incomplete']      = array_merge( $result['incomplete'], $persisted['incomplete'] );
+				$result['duplicates']     += (int) $group['duplicates'];
+				$result['teams']      += count( $group['team_ids'] );
+				$result['post_status'] = $persisted['post_status'];
+				$result['groups'][]    = array( 'level_name' => $group['level_name'], 'created' => (int) $persisted['created'], 'failed' => (int) $persisted['failed'], 'incomplete' => count( $persisted['incomplete_ids'] ) );
+			}
+
+			if ( $result['failed'] || $result['incomplete_ids'] ) {
+				$result['partial'] = true;
+			}
+
+			if ( ! $result['created'] && ! $result['incomplete_ids'] ) {
+				return new \WP_Error( 'leagueflow_fixtures_failed', __( 'No fixture could be saved. Nothing was created.', 'leagueflow' ), array( 'failed_pairings' => $result['failed_pairings'] ) );
+			}
+		} finally {
+			$this->unlock( $lock );
+		}
+
+		$result['scheduled']         = 0;
+		$result['unscheduled']       = count( $result['created_ids'] );
+		$result['schedule_messages'] = array();
 
 		if ( ! empty( $context['auto_schedule'] ) && ! empty( $result['created_ids'] ) ) {
 			$sport_slug = '';
 
 			if ( $context['sport_id'] ) {
-				$term = get_term( $context['sport_id'], 'lf_sport' );
+				$term       = get_term( $context['sport_id'], 'lf_sport' );
 				$sport_slug = ( $term && ! is_wp_error( $term ) ) ? $term->slug : '';
 			}
 
@@ -317,6 +535,7 @@ class Fixture_Generator {
 			);
 
 			$result['scheduled']         = (int) ( $schedule['scheduled'] ?? 0 );
+			$result['unscheduled']       = max( 0, count( $result['created_ids'] ) - $result['scheduled'] );
 			$result['schedule_messages'] = (array) ( $schedule['messages'] ?? array() );
 		}
 
@@ -324,28 +543,146 @@ class Fixture_Generator {
 	}
 
 	/**
+	 * Pairings that already exist (not trashed) in the same sport, level,
+	 * competition and season. Knockout matches are ignored.
+	 *
+	 * @param array<string, mixed> $context Context.
+	 * @param int                  $level_id Level.
+	 * @param int                  $legs Legs.
+	 * @return array<string, true>
+	 */
+	public function existing_pair_keys( $context, $level_id, $legs ) {
+		$tax_query = array(
+			array(
+				'taxonomy' => 'lf_sport',
+				'field'    => 'term_id',
+				'terms'    => array( (int) $context['sport_id'] ),
+			),
+			array(
+				'taxonomy' => 'lf_league_level',
+				'field'    => 'term_id',
+				'terms'    => array( (int) $level_id ),
+			),
+		);
+
+		foreach ( array( 'lf_competition' => $context['competition_id'], 'lf_season' => $context['season_id'] ) as $taxonomy => $term_id ) {
+			$tax_query[] = $term_id
+				? array( 'taxonomy' => $taxonomy, 'field' => 'term_id', 'terms' => array( (int) $term_id ) )
+				: array( 'taxonomy' => $taxonomy, 'operator' => 'NOT EXISTS' );
+		}
+
+		$statuses  = array( 'publish', 'private', 'draft', 'pending', 'future' );
+		$match_ids = get_posts(
+			array(
+				'post_type'      => 'lf_match',
+				'post_status'    => $statuses,
+				'posts_per_page' => -1,
+				'fields'         => 'ids',
+				'tax_query'      => $tax_query,
+				'no_found_rows'  => true,
+			)
+		);
+		// Generated matches carry their scope too, even if a term write failed.
+		$scoped    = get_posts(
+			array(
+				'post_type'      => 'lf_match',
+				'post_status'    => $statuses,
+				'posts_per_page' => -1,
+				'fields'         => 'ids',
+				'meta_key'       => self::META_SCOPE, // phpcs:ignore WordPress.DB.SlowDBQuery
+				'meta_value'     => $this->scope_key( $context, $level_id ), // phpcs:ignore WordPress.DB.SlowDBQuery
+				'no_found_rows'  => true,
+			)
+		);
+		$match_ids = array_unique( array_merge( array_map( 'intval', $match_ids ), array_map( 'intval', $scoped ) ) );
+		$keys      = array();
+
+		foreach ( $match_ids as $match_id ) {
+			if ( get_post_meta( $match_id, 'lf_is_knockout', true ) ) {
+				continue;
+			}
+
+			$home = absint( get_post_meta( $match_id, 'lf_home_team_id', true ) );
+			$away = absint( get_post_meta( $match_id, 'lf_away_team_id', true ) );
+
+			if ( $home && $away ) {
+				$keys[ $this->pair_key( $home, $away, $legs ) ] = true;
+			}
+		}
+
+		return $keys;
+	}
+
+	/**
+	 * Scope key of a generation run for one level.
+	 *
+	 * @param array<string, mixed> $context Context.
+	 * @param int                  $level_id Level.
+	 * @return string
+	 */
+	protected function scope_key( $context, $level_id ) {
+		return implode( '|', array( absint( $context['sport_id'] ), absint( $level_id ), absint( $context['competition_id'] ), absint( $context['season_id'] ) ) );
+	}
+
+	/**
+	 * Duplicate key: unordered for a single round-robin, ordered for home and away.
+	 *
+	 * @param int $home Home team.
+	 * @param int $away Away team.
+	 * @param int $legs Legs.
+	 * @return string
+	 */
+	protected function pair_key( $home, $away, $legs ) {
+		$home = (int) $home;
+		$away = (int) $away;
+
+		return 2 === (int) $legs ? $home . '>' . $away : min( $home, $away ) . '-' . max( $home, $away );
+	}
+
+	/**
+	 * Take a named database lock. Fails closed: a timeout or an unavailable
+	 * lock service creates nothing.
+	 *
+	 * @param string $name Lock name.
+	 * @return bool
+	 */
+	protected function lock( $name ) {
+		return acquire_db_lock( $name, 3 );
+	}
+
+	/**
+	 * Release a named lock.
+	 *
+	 * @param string $name Lock name.
+	 * @return void
+	 */
+	protected function unlock( $name ) {
+		release_db_lock( $name );
+	}
+
+	/**
 	 * Assign taxonomy terms from the context onto a generated match.
 	 *
 	 * @param int                  $post_id Match ID.
 	 * @param array<string, mixed> $context Context.
-	 * @return void
+	 * @return array<int, string> Taxonomies that could not be assigned.
 	 */
 	protected function assign_context_terms( $post_id, $context ) {
-		if ( $context['sport_id'] ) {
-			wp_set_object_terms( $post_id, array( $context['sport_id'] ), 'lf_sport', false );
+		$failed = array();
+
+		foreach ( array( 'lf_sport' => 'sport_id', 'lf_league_level' => 'league_level_id', 'lf_competition' => 'competition_id', 'lf_season' => 'season_id' ) as $taxonomy => $key ) {
+			if ( ! $context[ $key ] ) {
+				continue;
+			}
+
+			$result = wp_set_object_terms( $post_id, array( (int) $context[ $key ] ), $taxonomy, false );
+
+			if ( is_wp_error( $result ) || ! object_term_saved( $post_id, (int) $context[ $key ], $taxonomy ) ) {
+				$failed[] = $taxonomy;
+			}
 		}
 
-		if ( $context['league_level_id'] ) {
-			wp_set_object_terms( $post_id, array( $context['league_level_id'] ), 'lf_league_level', false );
-		}
-
-		if ( $context['competition_id'] ) {
-			wp_set_object_terms( $post_id, array( $context['competition_id'] ), 'lf_competition', false );
-		}
-
-		if ( $context['season_id'] ) {
-			wp_set_object_terms( $post_id, array( $context['season_id'] ), 'lf_season', false );
-		}
+		return $failed;
 	}
 
 	/**
@@ -365,6 +702,9 @@ class Fixture_Generator {
 				'legs'            => 1,
 				'post_status'     => 'draft',
 				'auto_schedule'   => false,
+				'per_level'       => false,
+				'token'           => '',
+				'batch'           => '',
 			)
 		);
 	}

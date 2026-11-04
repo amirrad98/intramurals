@@ -2,6 +2,61 @@
 
 LeagueFlow is a classic WordPress plugin for running multi-sport leagues with teams, players, fixtures, derived standings, and knockout brackets. It uses WordPress-native admin screens, metaboxes, taxonomies, dynamic Gutenberg blocks, and shortcodes.
 
+## Results workflow and calendar layout (1.2.0)
+
+**LeagueFlow → Results** lists played games by stage: needs a score, saved but not
+published, scheduled, needs review and published. Enter a score or forfeit, then
+publish it, save it without publishing, or schedule it. Only published (Finished)
+results show on the site and count in the standings. `wp leagueflow results
+finish-scored` publishes scored matches that were never finished. The calendar and
+league views use CampusManager's layout with theme-supplied design tokens; on phones
+the month is a compact grid with the selected day's games below. Calendar Events use the
+classic editor and can carry a poster image that visitors open full size from the calendar. See
+[release notes](releases/1.2.0.md).
+
+## Scoring and admin workflow fixes (1.1.1)
+
+Saving both valid scores on a **Scheduled** match now marks it **Finished** and
+updates derived standings. Explicit zeros are valid; blank scores stay missing.
+A forfeit can finish without invented played scores. **Live**, **Postponed** and
+**Cancelled** remain intentional states. The editor's keep-status control supports
+provisional scores and reopening, and the final-result action remains available.
+
+Linked knockout fixtures follow completed results, corrections and reopening
+when their target is still unplayed. Started targets are preserved and flagged
+for staff review. Referee final submissions use the same progression with limited
+permissions. Public cards, lists, calendars, brackets and result feeds agree on
+forfeits, tied knockout winners and incomplete legacy scores.
+
+Admin navigation preserves sport/level/competition/season context and separates
+match lifecycle from WordPress publication status. Sport setup preserves staff
+labels, validates context ownership and uses per-field inheritance for points,
+tie-breakers and forfeit scores. Result and scheduling saves verify all related
+writes and roll back a failed operation.
+
+See [the scoring/admin review](docs/SCORING-ADMIN-REVIEW-2026-10-21.md) for behavior,
+verification, integration boundaries and rollout guidance. The version is prepared
+for review; a branch or PR does not publish an update or install it on a website.
+
+## Intramurals and calendar update (1.1.0)
+
+The calendar now loads the visible date range and completes paginated month/week/day
+results, with explicit loading and retry states. Its block controls follow the
+CampusManager calendar's view, display, cost and ordering patterns while retaining
+LeagueFlow's sports, teams and seasons. Drop-ins and other non-match events share
+the same calendar. Existing `leagueflow/match-calendar` blocks and shortcodes remain
+supported.
+
+Staff can explicitly save final results, diagnose exclusions from standings, assign
+limited referee access, configure personal waiver/Code of Conduct acknowledgements,
+and preview closure of already-placed requests. **LeagueFlow → Staff guide** explains
+the routine workflows inside WordPress.
+
+- [Review, priorities and rollout](docs/REVIEW-2026-10-21.md)
+- [Calendar reference mapping and block settings](docs/CALENDAR-REBUILD.md)
+- [Registration documents and placements](docs/REGISTRATION-AND-PLACEMENTS.md)
+- [Standings, knockout and scheduling audit](docs/LOGIC-AUDIT-2026-10-21.md)
+
 ## GitHub releases and WordPress updates
 
 Requires **WordPress 6.5+ and PHP 8.1+**. Download the attached
@@ -10,8 +65,12 @@ Install it through **Plugins → Add New → Upload Plugin**. The package contai
 stable `leagueflow/` directory. Use this asset rather than GitHub's generated source
 archives, which contain development tooling and have a different directory name.
 
-Sites running 1.0.1 or earlier must upload the updater-enabled 1.0.2 release once and
-replace the existing installation. While LeagueFlow is active, later stable releases
+Older builds that do not include the updater, or point at the previous repository,
+must upload the built ZIP once and replace the existing `leagueflow/` installation.
+The 1.1.0 update feed points to **amirrad98/intramurals**. It can offer automatic updates
+only after a verified stable release and its assets are published in that repository.
+Branch and pull-request artifacts are review packages, not published stable releases.
+While LeagueFlow is active, later stable releases
 appear through WordPress's normal plugin update checks. **Dashboard → Updates →
 Check again** requests a check; successful release metadata is cached for five
 minutes. A site does not need a GitHub token. Administrators choose when to install
@@ -53,6 +112,16 @@ For a new stable release:
 4. Create an annotated matching tag (`git tag -a vX.Y.Z -m 'LeagueFlow X.Y.Z'`)
    and push it (`git push origin vX.Y.Z`).
 
+Alternatively, after merging the version into `main`, open **Actions → LeagueFlow
+checks and release → Run workflow**, select `main`, and enter `vX.Y.Z` in
+**release_tag**. This repeats all checks, creates an annotated tag at the exact
+tested commit, and publishes through the same verified-asset process. Leaving
+the field blank runs checks only. A moved `main` stops creation of a new tag;
+an existing matching tag can resume its original run after `main` advances.
+A tag pointing at another commit stops publication; tags are never moved. The manual workflow
+publishes in the same run because tags created with `GITHUB_TOKEN` do not trigger
+another push workflow.
+
 The tag workflow repeats all checks before publishing. It creates a draft,
 verifies all three assets and then makes the release public. Reruns compare bytes
 and can finish incomplete drafts; they never overwrite different existing assets.
@@ -62,10 +131,16 @@ ZIP; increment the version instead. Branch and pull-request builds upload test
 artifacts but do not publish releases. No additional GitHub secrets are required.
 
 Native integration sets `LEAGUEFLOW_TEST_PACKAGE` to the built ZIP and runs
-`wp eval-file tests/wordpress-security.php`, followed by
+`wp eval-file tests/wordpress-security.php`, then
+`LEAGUEFLOW_DISPOSABLE_WP=1 wp eval-file tests/wordpress-portal.php` and
+`tests/wordpress-portal-http.php` and `tests/wordpress-admin.php`, then the standings,
+scheduling, calendar, registration, REST identity, referee and public API suites, plus
+automatic results, bracket synchronization, native REST guards, public result display,
+admin workflow and per-sport setup regressions, followed by
 `wp eval-file tests/wordpress-update.php` on an isolated
-`http://leagueflow.test` installation with MySQL, PHP 8.2, WP-CLI, `zip`, `mysqli`
-and the built plugin activated. Controlled HTTP fixtures exercise real WordPress
+`http://leagueflow.test` installation with MySQL, PHP 8.2, WP-CLI, `zip`, `mysqli`,
+`curl`, `gd` and the built plugin activated. The portal HTTP program starts PHP's
+built-in server on `127.0.0.1` only (port `LEAGUEFLOW_HTTP_PORT`, default 8765). Controlled HTTP fixtures exercise real WordPress
 update hooks and `Plugin_Upgrader`: both checksum rejection without file changes
 and a successful next-version installation preserving active status and stored
 data. Local isolated tests supplement this integration; they do not certify every
@@ -73,12 +148,12 @@ host, theme or league workflow.
 
 ## Architecture
 
-- `lf_team`, `lf_player`, and `lf_match` are shared custom post types used across all sports.
+- `lf_team`, `lf_player`, `lf_match`, `lf_calendar_event` and `lf_join_request` are shared custom post types used across all sports.
 - `lf_sport` is the core taxonomy that assigns every team, player, and match to a sport module.
 - `lf_league_level` assigns teams, players, matches, and calendar events to league levels such as Recreational and Competitive inside each sport.
 - `lf_competition` and `lf_season` are taxonomies shared by teams and matches.
 - `Sports_Manager` defines built-in sports, enables or disables sport modules, creates sport-specific admin menus, and exposes sport-specific match fields and icons.
-- Standings are calculated from finished match scores and are never entered manually.
+- Standings are calculated from published, finished league results. Team point adjustments remain supported; knockout results are excluded.
 - Knockout brackets are built from match meta (`lf_is_knockout`, `lf_round_label`, `lf_round_order`, `lf_next_match_id`, `lf_next_match_slot`).
 - Frontend blocks and shortcodes use the same server-side renderer for consistent output.
 - LeagueFlow ships portable public templates for team pages, match pages, and match archives. Classic themes use the bundled PHP wrappers, and block themes receive plugin-registered block templates unless the active theme or Site Editor provides a more specific override.
@@ -139,31 +214,40 @@ leagueflow/
 - **Team**: post with short name, city, coach, founded year, description, and featured image as logo.
 - **Player**: post with team assignment, jersey number, position, age, nationality, captain flag, and featured image as photo.
 - **Match**: post with fixture data, scores, status, sport-specific notes, and optional knockout settings.
-- **Field Availability**: saved admin availability windows that describe when a field or venue can host matches. Matches can link back to the availability window used by the scheduling assistant.
+- **Venue availability**: saved admin availability windows that describe when a field or venue can host matches. Matches can link back to the availability window used by the scheduling assistant.
 
 ## Admin Usage
 
-### Sports Setup
+All LeagueFlow screens are available under the `LeagueFlow` menu, in workflow order.
+A bar at the top of each screen shows where you are and switches the sport
+(`All sports`, `Soccer`, …); edit screens link back to the list for the
+record's sport. Enabled sports also have shortcuts to the shared screens.
+`docs/ADMIN-WORKFLOW.md` describes the journey and every behaviour in detail.
 
-- Start at `LeagueFlow > Sports`.
-- Enable the sports you want active in the plugin.
-- Each enabled sport gets its own left-hand WordPress admin menu with a sport-specific icon, overview page, and filtered team, player, match, standings, and bracket views.
-- Disabled sports stay out of the menu so one install can be tailored to the sports you actually run.
+### Setup
 
-### Teams
+- Start at `LeagueFlow > Sports` and enable the sports you run.
+- `LeagueFlow > Setup check` shows, per sport, what is configured and what is
+  missing (levels, competitions, seasons, current season, teams without a
+  level, records without a competition or season, venue availability). It is
+  read-only; its mapping tool lets staff explicitly give a competition or
+  season to teams or matches that have none, after a preview. Nothing is
+  assigned automatically and existing assignments are never replaced.
+- League levels are one list shared by every sport (`LeagueFlow > League Levels (all sports)`).
+- Competitions and seasons each belong to one sport. Mark a season as the
+  current season for its sport on its edit screen; other sports keep theirs.
+  Blocks and shortcodes resolve an omitted season to the sport's current season
+  when one is configured. The block inspector explicitly distinguishes
+  **All seasons** (`all`) from **Current season** (blank or `current`). Admin
+  screens show all seasons unless you choose Current season.
 
-- Add teams from `LeagueFlow > Teams`.
-- Sport-specific menus also provide sport-scoped team screens and `Add Team` links.
-- Assign each team to a league level from the team details box.
-- Use the main content editor for the team description.
-- Use the featured image for the team logo.
+### Teams and Players
 
-### Players
-
-- Add players from `LeagueFlow > Players`.
-- Sport-specific menus also provide sport-scoped player screens and `Add Player` links.
-- Assign each player to a team from the metabox.
-- Mark captains with the captain checkbox.
+- Add teams from `LeagueFlow > Teams` and players from `LeagueFlow > Players`;
+  `Add New` keeps the sport you are working in.
+- Assign each team to a league level from the team details box. Long user and
+  team lists have a filter box.
+- Within a sport, the Players list shows that sport's team, number and position.
 - Administrators can link an eligible subscriber or portal account, or provision
   a new account using the player's valid, unused email. New users receive a
   WordPress password-setup link. Linking keeps existing passwords unchanged.
@@ -171,58 +255,60 @@ leagueflow/
   and `promote_users`; provisioning also requires `create_users`. Privileged
   users and your own account cannot be linked as player identities.
 
-### Matches
+### Requests
 
-- Add fixtures from `LeagueFlow > Matches`.
-- Sport-specific menus also provide sport-scoped match screens and `Add Match` links.
-- Assign competition and season terms in the sidebar.
-- Match sport is inherited from the selected teams so cross-sport fixtures are blocked.
-- Match league level is inherited from the selected teams so recreational and competitive fixtures remain separate.
-- Use the Scheduling Assistant in the match details box to auto-fill date/time and venue from field availability, or edit those fields manually to override the assistant.
-- Mark a fixture as `finished` to have it counted in the league table.
-- For knockout fixtures, enable `Knockout Match`, define the round label and order, and optionally choose the next match and slot.
-- The match events box changes by sport. Soccer can store scorers and cards, basketball can store quarter scores and foul summaries, baseball can store inning lines, and so on.
+- `LeagueFlow > Requests` (capability `leagueflow_manage_placements`) is one
+  inbox for *Join a team* and *Needs placement* requests, with sport, level
+  and status filters, search, a "needs attention" filter and a detail panel
+  with history. The sport and level stay selected through tabs, paging, the
+  detail panel and every action.
+- Actions (approve, assign, close as already on the team, move to Needs
+  placement, decline, dismiss, reopen a request whose status is unknown) are
+  each protected by their own nonce and the review state the reviewer saw, and
+  re-checked under a per-request lock (a lock that cannot be taken changes
+  nothing). The primary decision is shown first; the others are under *Other
+  decisions*. Captains reviewing their own team's requests in the portal use
+  the same locked check, so staff and a captain cannot both decide. Every
+  decision is recorded in the history. Declining or dismissing never removes
+  anyone from a roster; nothing is deleted.
+- Adding a player to a team from the player screen or the portal closes that
+  player's matching pending request. Imports, migrations and demo data never do.
 
-### Field Availability
+### Matches, fixtures and scheduling
 
-- Open `LeagueFlow > Field Availability`, or the sport-specific `Field Availability` page, to define recurring weekday or one-off date windows for each site field.
-- Availability rules include field/venue name, sport scope, start and end times, match length, and optional buffer time.
-- Use `Auto Schedule Matches` to fill missing match dates, venues, or both for a sport, competition, season, date range, or specific date.
-- Existing matches and calendar events at the same venue are treated as conflicts, and teams are not placed into overlapping match slots.
-- Manual match edits remain the override path unless the overwrite option is intentionally selected.
-- Global field configuration requires `leagueflow_manage_field_availability`.
-  Bulk scheduling requires `leagueflow_manage_schedule` and permission to edit
-  every affected match; overwrite also requires `leagueflow_overwrite_schedule`.
-  Fixture generation requires `leagueflow_manage_fixtures` and readable teams.
-  Users without WordPress publication permission generate drafts.
+- Add matches from `LeagueFlow > Matches`. Matches without a date stay listed
+  and are labelled *Unscheduled* (there is an Unscheduled view).
+- Match sport and level come from the selected teams, so cross-sport and
+  cross-level fixtures are blocked.
+- A Finished match needs both scores (whole numbers; 0–0 is fine) unless it was
+  decided by forfeit.
+- `LeagueFlow > Generate fixtures` previews a round-robin per level (division)
+  for one sport, skips pairings that already exist, and creates drafts. The
+  result links to exactly the new drafts.
+- `LeagueFlow > Venues & availability` defines when venues are free. The
+  scheduling assistant fills missing dates and venues from those rules; without
+  rules it explains what to add first. Manual edits stay the override path
+  unless the overwrite option is chosen.
+- `Calendar Events` are non-match items (drop-ins, tournaments, closures).
+- For knockout fixtures, enable `Knockout Match`, define the round label and
+  order, and choose the next match from the valid later-round matches.
+- Capabilities: venue configuration `leagueflow_manage_field_availability`;
+  bulk scheduling `leagueflow_manage_schedule` plus edit rights on every
+  affected match (overwrite also `leagueflow_overwrite_schedule`); fixture
+  generation `leagueflow_manage_fixtures` and readable teams. Users without
+  publication permission generate drafts. These are granted to administrators
+  on upgrade; grant them explicitly to custom roles.
 
-These management capabilities are granted to administrators automatically on
-upgrade. Explicitly grant them when delegating to custom roles. Field availability
-permission authorizes changes across the whole site, including sport menu pages.
+### Standings, brackets and scoring
 
-### League Levels
-
-- Manage level terms from `LeagueFlow > League Levels`.
-- Recreational and Competitive levels are created automatically.
-- Use the level selector in standings, bracket, block, shortcode, and REST contexts to filter a sport into one level.
-
-### Competitions and Seasons
-
-- Manage competition terms from `LeagueFlow > Competitions`.
-- Manage season terms from `LeagueFlow > Seasons`.
-- Assign a sport to each competition and season so sport-specific pages, blocks, and filters stay consistent.
-- Apply them to teams and matches so blocks, archives, standings, and brackets can filter correctly.
-
-### Standings
-
-- Visit `LeagueFlow > Standings` to preview calculated tables in admin.
-- Points are controlled by plugin settings.
-
-### Knockout Brackets
-
-- Visit `LeagueFlow > Knockout Brackets` to preview the visual bracket.
-- Winners can advance automatically into the next match when a knockout fixture is marked `finished`.
-- If a match is decided by penalties or a ruling, use `Winner Override`.
+- `LeagueFlow > Standings` shows one table per level for a sport, from finished
+  published matches. The D (draw) column appears when a team has a draw.
+- `LeagueFlow > Settings` holds the default scoring. *Scoring by sport and
+  competition* lets a sport or competition use its own points and tie-breakers;
+  until saved, everything inherits the defaults.
+- `LeagueFlow > Knockout Brackets` previews the bracket. Winners advance when a
+  knockout fixture is marked `finished`; use `Winner Override` for penalties or
+  rulings.
 
 ## Gutenberg Blocks
 
@@ -232,9 +318,24 @@ permission authorizes changes across the whole site, including sport menu pages.
 - `Team Roster`
 - `Match List`
 - `Match Card`
+- `Sports Calendar`
 - `Knockout Bracket`
 
 All blocks are dynamic server-side blocks and inherit the classic frontend styling from the plugin. League table, team list, match list, calendar, and knockout bracket blocks support `sport` and `league_level` attributes so editors can target a specific sport module and level. Sport Standings displays enabled sports split by league level as expandable standings panels.
+
+### Theming
+
+`assets/css/design-tokens.css` defines one semantic token set (`--lf-card`,
+`--lf-muted`, `--lf-primary`, `--lf-accent`, `--lf-border`, `--lf-radius`,
+`--lf-shadow-*`, `--lf-font-display`/`-label`, …) with zero-specificity
+`:where(.leagueflow)` defaults. Every front-end view and the editor preview read
+only these tokens, so a theme sets brand values on `.leagueflow` (or a wrapper)
+without `!important` or stylesheet-order tricks. Layout follows CampusManager's
+calendar: card shells, a muted pill-tab track, event cards with a rounded accent
+pill in the sport colour, list dates with a hairline and a count pill, and on
+phones a compact number grid with dots whose selected day's events form the
+month card's footer. The older `--leagueflow-*` names still resolve to the new
+tokens for existing custom CSS.
 
 ## Shortcodes
 
@@ -246,10 +347,25 @@ All blocks are dynamic server-side blocks and inherit the classic frontend styli
 - `[knockout_bracket competition="2026-cup" season="2026-spring" sport="soccer" league_level="competitive"]`
 - `[team_list competition="spring-league" season="2026-spring" sport="soccer" league_level="recreational"]`
 - `[match_card match="456"]`
+- `[match_calendar season="all" include_events="1" month_display="sidebar"]`
+- `[leagueflow_referee]`
 
 Shortcode attributes accept IDs or slugs where appropriate.
 
 ## REST API
+
+Third-party integrations can use the dedicated **match events** and **finished
+results** feeds:
+
+- `/wp-json/leagueflow/v1/match-events?per_page=10`
+- `/wp-json/leagueflow/v1/match-results?date=2026-10-31&per_page=20`
+
+They include public team identities/logos, sport, league level, competition,
+season, kickoff date/time/timezone, venue and result metadata. Date ranges,
+latest-first results, ID/slug filters and bounded pagination are supported.
+See [the public API guide](docs/PUBLIC-MATCH-API.md) for the complete contract,
+examples, polling guidance and privacy rules. These additive endpoints follow
+CampusManager's collection/metadata pattern and keep the older responses below.
 
 Public read-only endpoints are available under:
 
@@ -277,9 +393,12 @@ that team's WordPress password cookie and includes its fixtures once unlocked;
 the team's unlocked profile and recent matches remain available. Staff retain
 private-team access through WordPress's normal permissions.
 
-Embedded match lists and `[match_calendar]` also default to 20 and are capped at
-100 records through their `limit` attribute. They no longer load all historical
-records; use date/taxonomy scopes or the paginated REST endpoints for larger feeds.
+Embedded match lists default to 20. `[match_calendar]` starts with up to 100
+records from the initial date range. Month/week/day views automatically complete
+that range in bounded requests; the upcoming list loads additional pages through
+**Load more events**. Each request retains the block/shortcode scope and is capped
+at 100; `limit` controls batch size. Earlier schedule history is not loaded merely
+to open a later month.
 
 Both `POST /calendar/events` and `POST /events/create-calendar-event` require
 WordPress event creation/editing permission. Users who can publish default to
@@ -290,10 +409,15 @@ taxonomy management permission.
 
 ## Demo Data
 
-Use `LeagueFlow > Settings > Generate Demo Data` to create:
+Demo data is for empty development sites only. It is available when
+`WP_ENVIRONMENT_TYPE` is `local` or `development` (or `LEAGUEFLOW_ALLOW_DEMO_DATA`
+is true). `LeagueFlow > Settings` shows a read-only preview; any existing league
+record, or a page/term using a demo slug that the seeder did not create, blocks
+the run before anything is written. After ticking the confirmation box,
+**Create demo data** adds (and never overwrites):
 
 - Sample competitions and a season
-- Recreational and Competitive league levels
+- Recreational and Competitive league levels (existing levels are reused, not renamed)
 - Four teams
 - Five players per team
 - League fixtures
@@ -303,7 +427,7 @@ Use `LeagueFlow > Settings > Generate Demo Data` to create:
 ## Local Testing Notes
 
 1. Activate the plugin locally.
-2. Generate demo data from settings.
+2. On an empty development site, preview and create demo data from Settings.
 3. Visit the generated pages:
    - `League Table`
    - `Fixtures & Results`

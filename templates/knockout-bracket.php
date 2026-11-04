@@ -27,21 +27,15 @@ if ( ! function_exists( 'leagueflow_render_bracket_node' ) ) {
 						<span class="leagueflow-bracket-tree__round"><?php echo esc_html( $node['round_label'] ); ?></span>
 					<?php endif; ?>
 					<?php if ( ! empty( $node['datetime'] ) ) : ?><time datetime="<?php echo esc_attr( $node['datetime_raw'] ); ?>"><?php echo esc_html( $node['datetime'] ); ?></time><?php endif; ?>
-					<div class="leagueflow-bracket__team<?php echo $home_winner ? ' is-winner' : ''; ?>">
-						<span><?php echo esc_html( $node['home_team'] ? $node['home_team'] : __( 'TBD', 'leagueflow' ) ); ?></span>
-						<strong><?php echo \LeagueFlow\has_score( $node['home_score'] ) ? esc_html( (string) \LeagueFlow\score_to_int( $node['home_score'] ) ) : '&mdash;'; ?></strong>
+					<div class="leagueflow-bracket__team<?php echo $home_winner ? ' is-winner' : ''; ?><?php echo ! empty( $node['is_bye'] ) && ! $node['home_team_id'] ? ' leagueflow-bracket__team--bye' : ''; ?>">
+						<span><?php echo esc_html( $node['home_team'] ? $node['home_team'] : ( ! empty( $node['is_bye'] ) ? __( 'Bye', 'leagueflow' ) : __( 'TBD', 'leagueflow' ) ) ); ?></span>
+						<strong><?php echo empty( $node['outcome'] ) && \LeagueFlow\Match_Status::is_valid_score( $node['home_score'] ) ? esc_html( (string) (int) $node['home_score'] ) : '&mdash;'; ?></strong>
 					</div>
-					<?php if ( ! empty( $node['is_bye'] ) ) : ?>
-						<div class="leagueflow-bracket__team leagueflow-bracket__team--bye">
-							<span><?php esc_html_e( 'Bye', 'leagueflow' ); ?></span>
-							<strong>&mdash;</strong>
-						</div>
-					<?php else : ?>
-						<div class="leagueflow-bracket__team<?php echo $away_winner ? ' is-winner' : ''; ?>">
-							<span><?php echo esc_html( $node['away_team'] ? $node['away_team'] : __( 'TBD', 'leagueflow' ) ); ?></span>
-							<strong><?php echo \LeagueFlow\has_score( $node['away_score'] ) ? esc_html( (string) \LeagueFlow\score_to_int( $node['away_score'] ) ) : '&mdash;'; ?></strong>
-						</div>
-					<?php endif; ?>
+					<div class="leagueflow-bracket__team<?php echo $away_winner ? ' is-winner' : ''; ?><?php echo ! empty( $node['is_bye'] ) && ! $node['away_team_id'] ? ' leagueflow-bracket__team--bye' : ''; ?>">
+						<span><?php echo esc_html( $node['away_team'] ? $node['away_team'] : ( ! empty( $node['is_bye'] ) ? __( 'Bye', 'leagueflow' ) : __( 'TBD', 'leagueflow' ) ) ); ?></span>
+						<strong><?php echo empty( $node['outcome'] ) && \LeagueFlow\Match_Status::is_valid_score( $node['away_score'] ) ? esc_html( (string) (int) $node['away_score'] ) : '&mdash;'; ?></strong>
+					</div>
+					<?php if ( ! empty( $node['status_label'] ) ) : ?><p class="leagueflow-bracket__result"><?php echo esc_html( $node['status_label'] . ( ! empty( $node['result_label'] ) ? ' · ' . $node['result_label'] : '' ) ); ?></p><?php endif; ?>
 					<p><a href="<?php echo esc_url( $node['permalink'] ); ?>"><?php esc_html_e( 'View match', 'leagueflow' ); ?></a></p>
 				</article>
 			</div>
@@ -77,14 +71,15 @@ $use_tree  = ! empty( $tree['linked'] ) && ! empty( $tree['roots'] );
 					<?php foreach ( $round['matches'] as $match ) : ?>
 						<article class="leagueflow-bracket__match">
 							<?php if ( ! empty( $match['datetime'] ) ) : ?><time datetime="<?php echo esc_attr( $match['datetime_raw'] ); ?>"><?php echo esc_html( $match['datetime'] ); ?></time><?php endif; ?>
-							<div class="leagueflow-bracket__team<?php echo (int) $match['winner_team_id'] === (int) $match['home_team_id'] ? ' is-winner' : ''; ?>">
-								<span><?php echo esc_html( $match['home_team'] ? $match['home_team'] : __( 'TBD', 'leagueflow' ) ); ?></span>
-								<strong><?php echo \LeagueFlow\has_score( $match['home_score'] ) ? esc_html( (string) \LeagueFlow\score_to_int( $match['home_score'] ) ) : '&mdash;'; ?></strong>
+							<div class="leagueflow-bracket__team<?php echo (int) $match['winner_team_id'] && (int) $match['winner_team_id'] === (int) $match['home_team_id'] ? ' is-winner' : ''; ?>">
+								<span><?php echo esc_html( $match['home_team'] ? $match['home_team'] : ( ! empty( $match['is_bye'] ) ? __( 'Bye', 'leagueflow' ) : __( 'TBD', 'leagueflow' ) ) ); ?></span>
+								<strong><?php echo empty( $match['outcome'] ) && \LeagueFlow\Match_Status::is_valid_score( $match['home_score'] ) ? esc_html( (string) (int) $match['home_score'] ) : '&mdash;'; ?></strong>
 							</div>
-							<div class="leagueflow-bracket__team<?php echo (int) $match['winner_team_id'] === (int) $match['away_team_id'] ? ' is-winner' : ''; ?>">
-								<span><?php echo esc_html( $match['away_team'] ? $match['away_team'] : __( 'TBD', 'leagueflow' ) ); ?></span>
-								<strong><?php echo \LeagueFlow\has_score( $match['away_score'] ) ? esc_html( (string) \LeagueFlow\score_to_int( $match['away_score'] ) ) : '&mdash;'; ?></strong>
+							<div class="leagueflow-bracket__team<?php echo (int) $match['winner_team_id'] && (int) $match['winner_team_id'] === (int) $match['away_team_id'] ? ' is-winner' : ''; ?>">
+								<span><?php echo esc_html( $match['away_team'] ? $match['away_team'] : ( ! empty( $match['is_bye'] ) ? __( 'Bye', 'leagueflow' ) : __( 'TBD', 'leagueflow' ) ) ); ?></span>
+								<strong><?php echo empty( $match['outcome'] ) && \LeagueFlow\Match_Status::is_valid_score( $match['away_score'] ) ? esc_html( (string) (int) $match['away_score'] ) : '&mdash;'; ?></strong>
 							</div>
+							<?php if ( ! empty( $match['status_label'] ) ) : ?><p class="leagueflow-bracket__result"><?php echo esc_html( $match['status_label'] . ( ! empty( $match['result_label'] ) ? ' · ' . $match['result_label'] : '' ) ); ?></p><?php endif; ?>
 							<p><a href="<?php echo esc_url( $match['permalink'] ); ?>"><?php esc_html_e( 'View match', 'leagueflow' ); ?></a></p>
 						</article>
 					<?php endforeach; ?>
