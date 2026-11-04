@@ -3,7 +3,7 @@
  * Plugin Name: LeagueFlow
  * Plugin URI: https://github.com/amirrad98/intramurals
  * Description: Native WordPress multi-sport league management for teams, players, fixtures, standings, and knockout brackets.
- * Version: 1.2.0
+ * Version: 1.2.1
  * Update URI: https://github.com/amirrad98/intramurals
  * Requires at least: 6.5
  * Requires PHP: 8.1
@@ -17,7 +17,7 @@
 defined( 'ABSPATH' ) || exit;
 
 if ( ! defined( 'LEAGUEFLOW_VERSION' ) ) {
-	define( 'LEAGUEFLOW_VERSION', '1.2.0' );
+	define( 'LEAGUEFLOW_VERSION', '1.2.1' );
 }
 
 if ( ! defined( 'LEAGUEFLOW_FILE' ) ) {
