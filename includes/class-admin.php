@@ -3069,8 +3069,10 @@ class Admin {
 				<?php
 				$current_sport = get_post_primary_term_slug( $post->ID, 'lf_sport' );
 				$sport_options = $this->get_sport_choice_options( $current_sport );
+				$sport_options['drop_in'] = __( 'Drop-in (all sports)', 'leagueflow' );
+				$current_choice = $current_sport ? $current_sport : ( 'auto-draft' !== $post->post_status && 'drop_in' === get_post_meta( $post->ID, 'lf_event_type', true ) ? 'drop_in' : $sport_slug );
 				?>
-				<th scope="row"><label for="lf_sport_choice"><?php esc_html_e( 'Sport', 'leagueflow' ); ?> <span aria-hidden="true">*</span></label></th>
+				<th scope="row"><label for="lf_sport_choice"><?php esc_html_e( 'Sport / activity', 'leagueflow' ); ?> <span aria-hidden="true">*</span></label></th>
 				<td>
 					<?php if ( empty( $sport_options ) ) : ?>
 						<?php $this->render_no_enabled_sports_notice(); ?>
@@ -3078,10 +3080,10 @@ class Admin {
 						<select id="lf_sport_choice" name="lf_sport_choice" required aria-describedby="lf_event_sport_help">
 							<option value=""><?php esc_html_e( 'Choose a sport', 'leagueflow' ); ?></option>
 							<?php foreach ( $sport_options as $slug => $label ) : ?>
-								<option value="<?php echo esc_attr( $slug ); ?>" <?php selected( $current_sport ? $current_sport : $sport_slug, $slug ); ?>><?php echo esc_html( $label ); ?></option>
+								<option value="<?php echo esc_attr( $slug ); ?>" <?php selected( $current_choice, $slug ); ?>><?php echo esc_html( $label ); ?></option>
 							<?php endforeach; ?>
 						</select>
-						<p class="description" id="lf_event_sport_help"><?php esc_html_e( 'The sport whose calendar shows this event. Only enabled sports can be chosen. When changing sport, also choose its competitions and seasons or clear those selections.', 'leagueflow' ); ?></p>
+						<p class="description" id="lf_event_sport_help"><?php esc_html_e( 'Choose an enabled sport for that sport\'s calendar, or Drop-in for a standalone activity on the all-sports calendar. Drop-in removes sport, competition and season assignments and sets the event type to Drop-in.', 'leagueflow' ); ?></p>
 					<?php endif; ?>
 				</td>
 			</tr>
@@ -3700,6 +3702,9 @@ class Admin {
 		}
 
 		$type = sanitize_key( wp_unslash( $_POST['lf_event_type'] ?? 'drop_in' ) );
+		if ( Taxonomies::STANDALONE_DROP_IN === $this->get_submitted_sport_choice() ) {
+			$type = 'drop_in';
+		}
 
 		if ( ! isset( $this->calendar_event_types[ $type ] ) ) {
 			$type = 'drop_in';
@@ -3753,6 +3758,12 @@ class Admin {
 	 */
 	protected function save_calendar_event_sport_choice( $post_id, $context ) {
 		$save_error = new \WP_Error( 'leagueflow_event_context_not_saved', __( 'The event sport and context could not be saved together. Their previous assignments were kept; please try again.', 'leagueflow' ) );
+		if ( Taxonomies::STANDALONE_DROP_IN === $this->get_submitted_sport_choice() ) {
+			// WordPress may omit tag-box values entirely. Explicitly clear stale scope for standalone activities.
+			foreach ( array( 'lf_competition', 'lf_season' ) as $taxonomy ) {
+				if ( is_wp_error( wp_set_object_terms( $post_id, array(), $taxonomy, false ) ) ) { return $save_error; }
+			}
+		}
 		foreach ( array( 'lf_competition', 'lf_season' ) as $taxonomy ) {
 			$ids = wp_get_object_terms( $post_id, $taxonomy, array( 'fields' => 'ids' ) );
 			if ( is_wp_error( $ids ) ) { return $save_error; }
@@ -3763,8 +3774,14 @@ class Admin {
 		$sport_ids = $context['candidate']['lf_sport'];
 		if ( $sport_ids !== $context['existing']['lf_sport'] ) {
 			$result = wp_set_object_terms( $post_id, $sport_ids, 'lf_sport', false );
-			if ( is_wp_error( $result ) || ! object_term_saved( $post_id, $sport_ids[0], 'lf_sport' ) ) { return $save_error; }
-		} elseif ( ! $sport_ids && isset( $_POST['lf_sport_choice'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Verified by can_save().
+			if ( is_wp_error( $result ) ) { return $save_error; }
+			if ( $sport_ids ) {
+				if ( ! object_term_saved( $post_id, $sport_ids[0], 'lf_sport' ) ) { return $save_error; }
+			} else {
+				$actual = wp_get_object_terms( $post_id, 'lf_sport', array( 'fields' => 'ids' ) );
+				if ( is_wp_error( $actual ) || $actual ) { return $save_error; }
+			}
+		} elseif ( ! $sport_ids && isset( $_POST['lf_sport_choice'] ) && Taxonomies::STANDALONE_DROP_IN !== $this->get_submitted_sport_choice() ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Verified by can_save().
 			$this->queue_notice( __( 'Choose a sport for this calendar event so it appears in that sport\'s calendar.', 'leagueflow' ), 'error' );
 		}
 		return true;
