@@ -152,7 +152,7 @@ jobs:
 
   publish:
     if: >-
-      github.repository == 'ahzs645/leugueflow' &&
+      github.repository == 'amirrad98/intramurals' &&
       ((github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.release_tag != ''))
     needs: [php, calendar, package, wordpress]
